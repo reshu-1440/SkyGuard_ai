@@ -33,17 +33,22 @@ class SyntheticValidationConnector(BaseConnector):
 
         df = pd.read_csv(self.file_path)
         for _, row in df.iterrows():
+            t_val = row.get("temperature_c") if "temperature_c" in row else row.get("temperature")
+            rh_val = row.get("relative_humidity_pct") if "relative_humidity_pct" in row else row.get("humidity")
+            slp_val = row.get("sea_level_pressure_hpa") if "sea_level_pressure_hpa" in row else row.get("pressure")
+            stn_name = row.get("station_name") or f"AWS_{row['station_id']}"
+
             obs = WeatherObservation(
                 station_id=str(row["station_id"]),
-                station_name=f"AWS_{row['station_id']}",
+                station_name=str(stn_name),
                 latitude=float(row.get("latitude", 28.6139)),
                 longitude=float(row.get("longitude", 77.2090)),
                 elevation=float(row.get("elevation", 216.0)),
                 timestamp=pd.to_datetime(row["timestamp"], utc=True).to_pydatetime(),
-                temperature=float(row["temperature"]) if pd.notna(row["temperature"]) else None,
+                temperature=float(t_val) if pd.notna(t_val) else None,
                 dew_point_c=float(row["dew_point_c"]) if "dew_point_c" in row and pd.notna(row["dew_point_c"]) else None,
-                humidity=float(row["humidity"]) if pd.notna(row["humidity"]) else None,
-                pressure=float(row["pressure"]) if pd.notna(row["pressure"]) else None,
+                humidity=float(rh_val) if pd.notna(rh_val) else None,
+                pressure=float(slp_val) if pd.notna(slp_val) else None,
                 source=ObservationSource.SYNTHETIC_VALIDATION,
                 data_quality_status=QualityStatus.VALID,
                 is_synthetic=True,

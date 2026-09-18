@@ -10,9 +10,30 @@ import {
   GitCompare,
   History,
   Cpu,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
+
+const navItems = [
+  { to: '/network',     label: 'Network Overview',       icon: Network },
+  { to: '/live',        label: 'Live Monitoring',         icon: Activity },
+  {
+    label: 'Station Details',
+    icon: Radio,
+    activeMatch: (pathname: string) => pathname.startsWith('/stations'),
+    getDest: (defaultId: string) => defaultId ? `/stations/${defaultId}` : '/network',
+  },
+  {
+    to: '/anomalies',
+    label: 'Anomaly Investigation',
+    icon: AlertTriangle,
+    activeMatch: (pathname: string) => pathname.startsWith('/anomalies'),
+  },
+  { to: '/health',      label: 'Sensor Health',           icon: HeartPulse },
+  { to: '/corrections', label: 'Correction Review',       icon: GitCompare },
+  { to: '/history',     label: 'Historical Analysis',     icon: History },
+  { to: '/system',      label: 'System Status',           icon: Cpu },
+];
 
 export const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState<boolean>(false);
@@ -21,49 +42,42 @@ export const Sidebar: React.FC = () => {
   const { stationId: routeStationId } = useParams<{ stationId?: string }>();
   const location = useLocation();
 
-  // Determine active station from route or first configured station
   const defaultStationId = stations.length > 0 ? stations[0].station_id : '';
   const activeStationId = routeStationId || defaultStationId;
 
-  const navItems = [
-    { to: '/network', label: 'Network Overview', icon: Network },
-    { to: '/live', label: 'Live Monitoring', icon: Activity },
-    {
-      to: activeStationId ? `/stations/${activeStationId}` : '/network',
-      label: 'Station Details',
-      icon: Radio,
-      activeMatch: (pathname: string) => pathname.startsWith('/stations'),
-    },
-    {
-      to: '/anomalies',
-      label: 'Anomaly Investigation',
-      icon: AlertTriangle,
-      activeMatch: (pathname: string) => pathname.startsWith('/anomalies'),
-    },
-    { to: '/health', label: 'Sensor Health', icon: HeartPulse },
-    { to: '/corrections', label: 'Correction Review', icon: GitCompare },
-    { to: '/history', label: 'Historical Analysis', icon: History },
-    { to: '/system', label: 'System Status', icon: Cpu },
-  ];
-
-  // Sort stations by severity/health
+  // Sort stations by health score ascending (most degraded first)
   const sortedStations = [...stations].sort((a, b) => {
     const healthA = a.latest_snapshot?.latest_health_score ?? 100;
     const healthB = b.latest_snapshot?.latest_health_score ?? 100;
     return healthA - healthB;
   });
 
+  const getStationHealthColor = (score: number) => {
+    if (score < 60) return { text: '#EF4444', bg: '#EF4444' };
+    if (score < 85) return { text: '#F59E0B', bg: '#F59E0B' };
+    return { text: '#10B981', bg: '#10B981' };
+  };
+
   return (
     <aside
-      className={`h-[calc(100vh-40px)] bg-surface-1 border-r border-border flex flex-col justify-between transition-all duration-200 select-none z-20 flex-shrink-0 ${
-        collapsed ? 'w-12' : 'w-56'
-      }`}
+      style={{
+        background: '#090D14',
+        borderRight: '1px solid #1F2D45',
+        width: collapsed ? '44px' : '220px',
+        transition: 'width 200ms ease',
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 48px - 36px)', // account for h-12 TopBar + banner
+        zIndex: 20,
+      }}
     >
-      {/* Top Section: Main Navigation Routes */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <nav className="p-2 space-y-1">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
+        <div className="px-1.5 space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
+            const to = 'getDest' in item ? item.getDest!(activeStationId) : (item.to ?? '/network');
             const isMatch = item.activeMatch
               ? item.activeMatch(location.pathname)
               : location.pathname === item.to;
@@ -71,80 +85,143 @@ export const Sidebar: React.FC = () => {
             return (
               <NavLink
                 key={item.label}
-                to={item.to}
-                className={`flex items-center gap-3 px-2.5 py-2 rounded text-data font-medium transition-colors ${
-                  isMatch
-                    ? 'bg-surface-2 text-ops-weather border-l-2 border-l-ops-weather'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-surface-hover'
-                }`}
+                to={to}
                 title={collapsed ? item.label : undefined}
+                className="flex items-center gap-2.5 px-2.5 py-2 text-[12px] font-medium transition-colors no-underline"
+                style={() => ({
+                  borderLeft: isMatch ? '2px solid #38BDF8' : '2px solid transparent',
+                  background: isMatch ? 'rgba(56,189,248,0.08)' : 'transparent',
+                  color: isMatch ? '#E8EEF7' : '#4A5B78',
+                  borderRadius: '2px',
+                })}
+                onMouseEnter={(e) => {
+                  if (!isMatch) {
+                    (e.currentTarget as HTMLElement).style.color = '#94A3B8';
+                    (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isMatch) {
+                    (e.currentTarget as HTMLElement).style.color = '#4A5B78';
+                    (e.currentTarget as HTMLElement).style.background = 'transparent';
+                  }
+                }}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                <Icon
+                  className="flex-shrink-0"
+                  size={15}
+                  color={isMatch ? '#38BDF8' : '#4A5B78'}
+                />
+                {!collapsed && (
+                  <span className="truncate">{item.label}</span>
+                )}
               </NavLink>
             );
           })}
-        </nav>
+        </div>
 
-        {/* Live Station State Strip (Severity-Sorted) */}
+        {/* Station roster — severity-sorted quick navigation */}
         {!collapsed && sortedStations.length > 0 && (
-          <div className="px-2 pt-3 border-t border-border-subtle">
-            <div className="px-2 pb-1.5 flex items-center justify-between text-[10px] font-mono text-slate-500 uppercase tracking-wider">
-              <span>Stations ({sortedStations.length})</span>
-              <span>Health</span>
+          <div className="mt-3 px-1.5">
+            {/* Section header */}
+            <div
+              className="flex items-center justify-between px-2 pb-1.5 pt-2 border-t"
+              style={{ borderColor: '#1F2D45' }}
+            >
+              <span
+                className="font-mono text-[10px] font-semibold uppercase tracking-widest"
+                style={{ color: '#2A3E60', letterSpacing: '0.1em' }}
+              >
+                Stations ({sortedStations.length})
+              </span>
+              <span
+                className="font-mono text-[10px]"
+                style={{ color: '#2A3E60' }}
+              >
+                Health
+              </span>
             </div>
-            <div className="space-y-0.5 max-h-56 overflow-y-auto pr-1">
+
+            <div className="space-y-px max-h-52 overflow-y-auto">
               {sortedStations.map((stn) => {
                 const score = stn.latest_snapshot?.latest_health_score ?? 100;
-                const isSelected = activeStationId === stn.station_id && location.pathname.startsWith('/stations');
                 const anomCount = stn.latest_snapshot?.active_anomaly_count_24h ?? 0;
-
-                let scoreColor = 'text-emerald-400';
-                let dotColor = 'bg-emerald-400';
-                if (score < 60) {
-                  scoreColor = 'text-red-400';
-                  dotColor = 'bg-red-400';
-                } else if (score < 85) {
-                  scoreColor = 'text-amber-400';
-                  dotColor = 'bg-amber-400';
-                }
+                const isSelected = activeStationId === stn.station_id && location.pathname.startsWith('/stations');
+                const { text: scoreColor, bg: dotColor } = getStationHealthColor(score);
 
                 return (
                   <button
                     key={stn.station_id}
                     onClick={() => navigate(`/stations/${stn.station_id}`)}
-                    className={`w-full flex items-center justify-between px-2 py-1 rounded text-left text-[11px] font-mono transition-colors ${
-                      isSelected
-                        ? 'bg-surface-2 text-ops-weather font-semibold border-l-2 border-l-ops-weather'
-                        : 'text-slate-300 hover:bg-surface-hover'
-                    }`}
+                    className="w-full flex items-center justify-between px-2 py-1.5 text-left text-[11px] font-mono transition-colors"
+                    style={{
+                      borderLeft: isSelected ? '2px solid #38BDF8' : '2px solid transparent',
+                      background: isSelected ? 'rgba(56,189,248,0.06)' : 'transparent',
+                      color: isSelected ? '#E8EEF7' : '#4A5B78',
+                      borderRadius: '2px',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        (e.currentTarget as HTMLElement).style.color = '#7B90B2';
+                        (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        (e.currentTarget as HTMLElement).style.color = '#4A5B78';
+                        (e.currentTarget as HTMLElement).style.background = 'transparent';
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-1.5 truncate">
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
+                      {/* Status dot — color communicates health tier, no animation */}
+                      <span
+                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                        style={{ background: dotColor }}
+                      />
                       <span className="truncate">{stn.station_id}</span>
+                      {/* Anomaly count badge — shown only when non-zero */}
                       {anomCount > 0 && (
-                        <span className="px-1 text-[9px] bg-red-950 text-red-300 rounded border border-red-800">
+                        <span
+                          className="px-1 text-[9px] font-bold flex-shrink-0"
+                          style={{
+                            background: 'rgba(239,68,68,0.12)',
+                            color: '#FCA5A5',
+                            border: '1px solid rgba(239,68,68,0.3)',
+                            borderRadius: '2px',
+                          }}
+                        >
                           {anomCount}
                         </span>
                       )}
                     </div>
-                    <span className={`font-medium ${scoreColor}`}>{Math.round(score)}</span>
+                    <span className="font-semibold flex-shrink-0 ml-1" style={{ color: scoreColor }}>
+                      {Math.round(score)}
+                    </span>
                   </button>
                 );
               })}
             </div>
           </div>
         )}
-      </div>
+      </nav>
 
-      {/* Footer / Collapse Toggle */}
-      <div className="p-2 border-t border-border-subtle bg-surface-1/80">
+      {/* Collapse toggle */}
+      <div
+        className="flex-shrink-0 p-2 border-t"
+        style={{ borderColor: '#1F2D45', background: '#090D14' }}
+      >
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="w-full flex items-center justify-center p-1.5 rounded hover:bg-surface-hover text-slate-400 hover:text-slate-200 transition-colors"
+          className="w-full flex items-center justify-center p-1.5 transition-colors"
+          style={{ borderRadius: '2px', color: '#2A3E60' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#4A5B78')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '#2A3E60')}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {collapsed
+            ? <PanelLeftOpen className="w-4 h-4" />
+            : <PanelLeftClose className="w-4 h-4" />}
         </button>
       </div>
     </aside>

@@ -26,6 +26,7 @@ export async function fetchStationHistory(
     endTime?: string;
     limit?: number;
     offset?: number;
+    order?: 'asc' | 'desc';
   }
 ): Promise<PaginatedResponse<WeatherObservation>> {
   const query = new URLSearchParams();
@@ -33,6 +34,7 @@ export async function fetchStationHistory(
   if (params?.endTime) query.set('end_time', params.endTime);
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.offset) query.set('offset', String(params.offset));
+  if (params?.order) query.set('order', params.order);
 
   const qs = query.toString() ? `?${query.toString()}` : '';
   return apiClient<PaginatedResponse<WeatherObservation>>(`/stations/${stationId}/history${qs}`);

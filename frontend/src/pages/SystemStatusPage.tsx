@@ -25,7 +25,8 @@ export const SystemStatusPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* 1. Header & System Health Banner */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-3 flex flex-wrap items-center justify-between gap-3"
+        style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px' }}>
         <div className="flex items-center gap-2">
           <Cpu className="w-5 h-5 text-ops-weather" />
           <div>
@@ -55,7 +56,8 @@ export const SystemStatusPage: React.FC = () => {
       {/* 3. Lower Area: Pipeline Latency Breakdown Table + Stream Replay Diagnostics (No dead whitespace) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left (7 cols): Detailed Pipeline Stage Latencies */}
-        <div className="lg:col-span-7 p-4 rounded border border-border bg-surface-1 space-y-3">
+        <div className="lg:col-span-7 p-4 space-y-3"
+          style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px' }}>
           <div className="flex items-center justify-between border-b border-border-subtle pb-2">
             <h3 className="text-h2 font-semibold text-slate-100 flex items-center gap-2">
               <Activity className="w-4 h-4 text-ops-pressure" />
@@ -96,7 +98,8 @@ export const SystemStatusPage: React.FC = () => {
           </div>
 
           {/* Operational metrics summary bar */}
-          <div className="p-3 rounded bg-surface-2 border border-border-subtle grid grid-cols-3 gap-2 font-mono text-[11px]">
+          <div className="p-3 grid grid-cols-3 gap-2 font-mono text-[11px]"
+            style={{ background: '#131C2E', border: '1px solid #152030', borderRadius: '2px' }}>
             <div>
               <span className="text-slate-400 block text-[10px]">Processed Observations:</span>
               <span className="text-slate-100 font-bold">{systemHealth?.total_observations_processed.toLocaleString() ?? 0}</span>
@@ -113,7 +116,8 @@ export const SystemStatusPage: React.FC = () => {
         </div>
 
         {/* Right (5 cols): Stream Replay Simulation Controls & Test Queue */}
-        <div className="lg:col-span-5 p-4 rounded border border-indigo-900/60 bg-indigo-950/20 space-y-3">
+        <div className="lg:col-span-5 p-4 space-y-3"
+          style={{ background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.2)', borderLeft: '3px solid #818CF8', borderRadius: '2px' }}>
           <div className="flex items-center justify-between border-b border-indigo-900/50 pb-2">
             <h3 className="text-h2 font-semibold text-indigo-300 flex items-center gap-2">
               <FastForward className="w-4 h-4 text-indigo-400" />
@@ -129,7 +133,7 @@ export const SystemStatusPage: React.FC = () => {
           </p>
 
           <div className="grid grid-cols-2 gap-3 py-1 font-mono text-[11px]">
-            <div className="p-2.5 rounded bg-surface-2 border border-border-subtle">
+            <div className="p-2.5" style={{ background: '#131C2E', border: '1px solid #152030', borderRadius: '2px' }}>
               <span className="text-slate-400 block text-[10px]">Queued Stream Data</span>
               <span className="text-h2 font-bold text-slate-100">
                 {replayStatus?.total_queued_observations ?? 0}

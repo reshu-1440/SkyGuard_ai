@@ -76,15 +76,15 @@ export const DecisionBanner: React.FC<DecisionBannerProps> = ({
   }
 
   const stickyClasses = isSticky
-    ? 'sticky top-0 z-20 shadow-md backdrop-blur-md bg-surface-1/95'
+    ? 'sticky top-0 z-20 border-b shadow-md bg-surface-1'
     : '';
 
   return (
-    <div className={`p-4 rounded border ${bannerBorder} ${leftBorderAccent} ${stickyClasses} transition-all`}>
+    <div className={`p-4 border ${bannerBorder} ${leftBorderAccent} ${stickyClasses} transition-all`} style={{ borderRadius: '2px' }}>
       {/* Row 1 & 2: Primary Operational Decision & Metadata */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded bg-surface-2 border border-border-subtle ${iconColor} flex-shrink-0`}>
+          <div className={`p-2 bg-surface-2 border border-border-subtle ${iconColor} flex-shrink-0`} style={{ borderRadius: '2px' }}>
             <Icon className="w-5 h-5" />
           </div>
           <div>
@@ -92,7 +92,7 @@ export const DecisionBanner: React.FC<DecisionBannerProps> = ({
               <span className="text-h2 font-bold tracking-wide text-slate-100">{title}</span>
               <SeverityBadge severity={severity} />
               {isDegradedMode && (
-                <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800 rounded">
+                <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800" style={{ borderRadius: '2px' }}>
                   Degraded Mode
                 </span>
               )}
@@ -100,17 +100,17 @@ export const DecisionBanner: React.FC<DecisionBannerProps> = ({
             <div className="flex items-center gap-3 mt-1 text-[11px] font-mono text-slate-400 flex-wrap">
               {stationId && (
                 <span>
-                  Station: <strong className="text-slate-200">{stationId}</strong>
+                  Station: <strong className="text-slate-200 font-mono">{stationId}</strong>
                 </span>
               )}
               {timestamp && (
                 <span>
-                  Timestamp: <strong className="text-slate-300">{formatIsoUtc(timestamp)}</strong>
+                  Timestamp: <strong className="text-slate-300 font-mono">{formatIsoUtc(timestamp)}</strong>
                 </span>
               )}
               {durationMinutes !== undefined && durationMinutes !== null && (
                 <span>
-                  Duration: <strong className="text-slate-200">{durationMinutes.toFixed(0)} min</strong>
+                  Duration: <strong className="text-slate-200 font-mono">{durationMinutes.toFixed(0)} min</strong>
                 </span>
               )}
             </div>
@@ -124,7 +124,8 @@ export const DecisionBanner: React.FC<DecisionBannerProps> = ({
             {reasonCodes.map((code) => (
               <span
                 key={code}
-                className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-surface-2 text-slate-300 border border-border"
+                className="px-1.5 py-0.5 text-[10px] font-mono bg-surface-2 text-slate-300 border border-border"
+                style={{ borderRadius: '2px' }}
               >
                 {code}
               </span>
@@ -134,7 +135,7 @@ export const DecisionBanner: React.FC<DecisionBannerProps> = ({
       </div>
 
       {/* Row 3: Engine Provenance (De-emphasized / Muted) */}
-      <div className="mt-2.5 pt-2 border-t border-border-subtle/50 flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-500">
+      <div className="mt-2.5 pt-2 border-t border-border-subtle flex flex-wrap items-center justify-between text-[10px] font-mono text-slate-500">
         <div>
           Engine: <span className="text-slate-400">{engineVersion}</span> | Model: <span className="text-slate-400">{modelVersion}</span> | Method: <span className="text-slate-400">{explanationMethod}</span>
         </div>

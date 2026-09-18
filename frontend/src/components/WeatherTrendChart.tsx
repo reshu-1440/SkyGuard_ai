@@ -124,17 +124,16 @@ export const WeatherTrendChart: React.FC<WeatherTrendChartProps> = ({
                 />
               )}
 
-              {/* Raw Sensor - Solid Line (Linear interpolation) */}
+              {/* Raw Sensor - Solid Line (Strictly real data points, no fake animation) */}
               <Line
                 type="linear"
                 dataKey="raw"
                 stroke={color}
                 strokeWidth={1.5}
-                dot={false}
-                activeDot={{ r: 4, stroke: color, fill: '#0B0F17' }}
+                dot={{ r: 2.5, fill: color, stroke: '#0B0F17', strokeWidth: 1 }}
+                activeDot={{ r: 5, stroke: color, fill: '#0B0F17', strokeWidth: 2 }}
                 connectNulls={false}
-                isAnimationActive={true}
-                animationDuration={400}
+                isAnimationActive={false}
               />
 
               {/* Imputed / Model Estimate - Dashed Line */}
@@ -146,8 +145,7 @@ export const WeatherTrendChart: React.FC<WeatherTrendChartProps> = ({
                 strokeDasharray="4 4"
                 dot={false}
                 connectNulls={false}
-                isAnimationActive={true}
-                animationDuration={400}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>

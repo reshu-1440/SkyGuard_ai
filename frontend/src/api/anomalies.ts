@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, ApiError } from './client';
 import {
   AnomalyEventRecord,
   ExplanationSummary,
@@ -31,6 +31,14 @@ export async function fetchAnomalyDetail(eventId: string): Promise<AnomalyEventR
   return apiClient<AnomalyEventRecord>(`/anomalies/${eventId}`);
 }
 
-export async function fetchAnomalyExplanation(eventId: string): Promise<ExplanationSummary> {
-  return apiClient<ExplanationSummary>(`/anomalies/${eventId}/explanation`);
+export async function fetchAnomalyExplanation(eventId: string): Promise<ExplanationSummary | null> {
+  try {
+    return await apiClient<ExplanationSummary>(`/anomalies/${eventId}/explanation`);
+  } catch (err: unknown) {
+    if (err instanceof ApiError && err.status === 404) {
+      return null;
+    }
+    throw err;
+  }
 }
+

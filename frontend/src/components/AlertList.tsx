@@ -29,37 +29,54 @@ export const AlertList: React.FC<AlertListProps> = ({
   }
 
   return (
-    <div className="divide-y divide-border-subtle rounded border border-border bg-surface-1">
-      {displayed.map((anom) => (
-        <div
-          key={anom.event_id}
-          onClick={() => navigate(`/anomalies/${anom.event_id}`)}
-          className="p-3 hover:bg-surface-2 cursor-pointer transition-colors flex items-center justify-between gap-3"
-        >
-          <div className="flex items-start gap-3">
-            <SeverityBadge severity={anom.severity} />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-data font-semibold text-slate-100">
-                  {anom.station_id}
-                </span>
-                <span className="text-[11px] font-mono text-slate-400">
-                  {anom.decision}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-1 max-w-xl">
-                {anom.explanation_summary}
-              </p>
-              <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500 mt-1">
-                <span>{new Date(anom.timestamp).toISOString().substring(0, 19)}Z</span>
-                <span>ID: {anom.event_id}</span>
+    <div style={{ borderRadius: '0' }}>
+      {displayed.map((anom, idx) => {
+        // Severity stripe color
+        const sev = (anom.severity || '').toLowerCase();
+        const stripeColor = sev === 'critical' ? '#EF4444'
+          : sev === 'high' ? '#F97316'
+          : sev === 'medium' ? '#F59E0B'
+          : '#60A5FA';
+
+        return (
+          <div
+            key={anom.event_id}
+            onClick={() => navigate(`/anomalies/${anom.event_id}`)}
+            className="flex items-center justify-between gap-3 cursor-pointer transition-colors"
+            style={{
+              padding: '10px 12px',
+              borderBottom: idx < displayed.length - 1 ? '1px solid #152030' : 'none',
+              borderLeft: `2px solid ${stripeColor}`,
+              background: 'transparent',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#131C2E')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            <div className="flex items-start gap-2.5 min-w-0">
+              <SeverityBadge severity={anom.severity} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-semibold text-[12px]" style={{ color: '#E8EEF7' }}>
+                    {anom.station_id}
+                  </span>
+                  <span className="font-mono text-[10px]" style={{ color: '#4A5B78' }}>
+                    {anom.decision}
+                  </span>
+                </div>
+                <p className="text-[11px] mt-0.5 truncate" style={{ color: '#7B90B2', maxWidth: '280px' }}>
+                  {anom.explanation_summary}
+                </p>
+                <div className="flex items-center gap-2 mt-1 font-mono text-[10px]" style={{ color: '#2A3E60' }}>
+                  <span>{new Date(anom.timestamp).toISOString().substring(0, 19)}Z</span>
+                  <span style={{ color: '#1F2D45' }}>·</span>
+                  <span className="truncate">ID: {anom.event_id}</span>
+                </div>
               </div>
             </div>
+            <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: '#2A3E60' }} />
           </div>
-
-          <ChevronRight className="w-4 h-4 text-slate-500 flex-shrink-0" />
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

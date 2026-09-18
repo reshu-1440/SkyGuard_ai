@@ -195,11 +195,9 @@ export const AnomalyInvestigationPage: React.FC = () => {
       {/* 2. Flagship 60% Left / 40% Right Split Investigation Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* ========================================================================= */}
-        {/* LEFT COLUMN (60% / 7 cols): Evidence, SHAP, Observed vs Expected, Audit  */}
-        {/* ========================================================================= */}
         <div className="lg:col-span-7 space-y-4">
           {/* Observed vs Recommended Operational Telemetry Table (Strict 3 variables) */}
-          <div className="p-4 rounded border border-border bg-surface-1 space-y-3">
+          <div className="p-4 border border-border bg-surface-1 space-y-3" style={{ borderRadius: '2px' }}>
             <div className="flex items-center justify-between border-b border-border-subtle pb-2">
               <h3 className="text-h2 font-semibold text-slate-100 flex items-center gap-2">
                 <Activity className="w-4 h-4 text-ops-weather" />
@@ -218,22 +216,23 @@ export const AnomalyInvestigationPage: React.FC = () => {
                 return (
                   <div
                     key={param.key}
-                    className={`p-3 rounded border ${
+                    className={`p-3 border ${
                       isAnomalous
                         ? 'bg-surface-2 border-red-900/60 ring-1 ring-red-900/40'
                         : 'bg-surface-2 border-border-subtle'
                     }`}
+                    style={{ borderRadius: '2px' }}
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="font-semibold text-slate-200">
                         {param.label} [{param.unit}]
                       </span>
                       {isAnomalous ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-300 border border-red-800 uppercase font-bold">
+                        <span className="px-1.5 py-0.5 text-[10px] bg-red-950 text-red-300 border border-red-800 uppercase font-bold" style={{ borderRadius: '2px' }}>
                           ▲ Sensor Departure
                         </span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 uppercase">
+                        <span className="px-1.5 py-0.5 text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 uppercase" style={{ borderRadius: '2px' }}>
                           ● Nominal
                         </span>
                       )}
@@ -291,7 +290,7 @@ export const AnomalyInvestigationPage: React.FC = () => {
         {/* ========================================================================= */}
         <div className="lg:col-span-5 space-y-4">
           {/* A. Spatial Context Mini-Map with Neighbor Links */}
-          <div className="p-4 rounded border border-border bg-surface-1 space-y-3">
+          <div className="p-4 border border-border bg-surface-1 space-y-3" style={{ borderRadius: '2px' }}>
             <div className="flex items-center justify-between border-b border-border-subtle pb-2">
               <h3 className="text-h2 font-semibold text-slate-100">
                 Spatial Context & Neighbor Topology
@@ -332,17 +331,17 @@ export const AnomalyInvestigationPage: React.FC = () => {
           />
 
           {/* D. Advisory Correction Recommendation Panel */}
-          <div className="p-4 rounded border border-border bg-surface-1 space-y-3">
+          <div className="p-4 border border-border bg-surface-1 space-y-3" style={{ borderRadius: '2px' }}>
             <div className="flex items-center justify-between border-b border-border-subtle pb-2">
               <h3 className="text-h2 font-semibold text-slate-100">
                 Advisory Imputation Candidate
               </h3>
               {Object.values(recValues).some((v) => v !== null && v !== undefined) ? (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-sky-950 text-sky-300 border border-sky-800 font-bold">
+                <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase bg-sky-950 text-sky-300 border border-sky-800 font-bold" style={{ borderRadius: '2px' }}>
                   CORRECTION_CANDIDATE
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-800 text-slate-400 border border-slate-700">
+                <span className="px-1.5 py-0.5 text-[10px] font-mono uppercase bg-slate-800 text-slate-400 border border-slate-700" style={{ borderRadius: '2px' }}>
                   NO_CORRECTION_NEEDED
                 </span>
               )}
@@ -351,11 +350,11 @@ export const AnomalyInvestigationPage: React.FC = () => {
             {Object.values(recValues).some((v) => v !== null && v !== undefined) ? (
               <>
                 <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                  <div className="p-2 rounded bg-surface-2 border border-border-subtle">
+                  <div className="p-2 bg-surface-2 border border-border-subtle" style={{ borderRadius: '2px' }}>
                     <span className="text-slate-400 block text-[10px]">Method:</span>
                     <span className="text-slate-200 font-semibold">SPATIAL_IDW_CONSENSUS</span>
                   </div>
-                  <div className="p-2 rounded bg-surface-2 border border-border-subtle">
+                  <div className="p-2 bg-surface-2 border border-border-subtle" style={{ borderRadius: '2px' }}>
                     <span className="text-slate-400 block text-[10px]">Target Parameter:</span>
                     <span className="text-emerald-400 font-semibold uppercase">
                       {recValues.temperature_c !== undefined ? 'Temperature' : 'Atmospheric'}
@@ -364,7 +363,7 @@ export const AnomalyInvestigationPage: React.FC = () => {
                 </div>
 
                 {/* Immutability Guarantee Notice */}
-                <div className="p-2.5 rounded bg-amber-950/30 border border-amber-800 text-[10px] text-amber-200 flex items-start gap-2">
+                <div className="p-2.5 bg-amber-950/30 border border-amber-800 text-[10px] text-amber-200 flex items-start gap-2" style={{ borderRadius: '2px', borderLeft: '3px solid #F59E0B' }}>
                   <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                   <span>
                     <strong className="text-slate-100">Immutable Guarantee:</strong> Raw sensor observation records are permanent and never mutated. Acknowledging or reviewing recommendations records metadata in audit logs only.
@@ -375,21 +374,24 @@ export const AnomalyInvestigationPage: React.FC = () => {
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={() => handleAction('ACCEPTED')}
-                    className="flex-1 py-1.5 px-2 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-colors"
+                    className="flex-1 py-1.5 px-2 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-colors"
+                    style={{ borderRadius: '2px' }}
                   >
                     <Check className="w-3.5 h-3.5" />
                     Accept
                   </button>
                   <button
                     onClick={() => handleAction('REJECTED')}
-                    className="flex-1 py-1.5 px-2 rounded bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-colors"
+                    className="flex-1 py-1.5 px-2 bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-colors"
+                    style={{ borderRadius: '2px' }}
                   >
                     <X className="w-3.5 h-3.5" />
                     Reject
                   </button>
                   <button
                     onClick={() => handleAction('FLAGGED_FOR_AUDIT')}
-                    className="flex-1 py-1.5 px-2 rounded bg-surface-2 hover:bg-surface-hover text-slate-300 border border-border text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-colors"
+                    className="flex-1 py-1.5 px-2 bg-surface-2 hover:bg-surface-hover text-slate-300 border border-border text-[11px] font-mono font-medium flex items-center justify-center gap-1 transition-colors"
+                    style={{ borderRadius: '2px' }}
                   >
                     <Flag className="w-3.5 h-3.5" />
                     Flag
@@ -397,29 +399,29 @@ export const AnomalyInvestigationPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <p className="text-[11px] font-mono text-slate-400 bg-surface-2 p-3 rounded border border-border-subtle leading-relaxed">
+              <p className="text-[11px] font-mono text-slate-400 bg-surface-2 p-3 border border-border-subtle leading-relaxed" style={{ borderRadius: '2px' }}>
                 No advisory correction candidate generated for this event. Raw telemetry is preserved without modification.
               </p>
             )}
 
             {actionFeedback && (
-              <div className="p-2 rounded bg-surface-2 border border-border-subtle text-[11px] font-mono text-emerald-400">
+              <div className="p-2 bg-surface-2 border border-border-subtle text-[11px] font-mono text-emerald-400" style={{ borderRadius: '2px' }}>
                 {actionFeedback}
               </div>
             )}
           </div>
 
           {/* E. SOP Guidance */}
-          <div className="p-4 rounded border border-border bg-surface-1 space-y-2">
+          <div className="p-4 border border-border bg-surface-1 space-y-2" style={{ borderRadius: '2px' }}>
             <h3 className="text-h2 font-semibold text-slate-100 flex items-center gap-2">
               <CheckSquare className="w-4 h-4 text-ops-weather" />
               Recommended SOP Actions
             </h3>
-            <p className="text-data text-slate-300 bg-surface-2 p-3 rounded border border-border-subtle leading-relaxed">
+            <p className="text-data text-slate-300 bg-surface-2 p-3 border border-border-subtle leading-relaxed" style={{ borderRadius: '2px' }}>
               {explanation?.summary || anomaly.explanation_summary || 'Standard diagnostic procedure applies. Verify sensor physical connections and regional neighbor agreement.'}
             </p>
             {explanation?.recommended_investigation_steps && explanation.recommended_investigation_steps.length > 0 && (
-              <ul className="space-y-1 text-data text-slate-300 list-disc list-inside bg-surface-2 p-2.5 rounded border border-border-subtle">
+              <ul className="space-y-1 text-data text-slate-300 list-disc list-inside bg-surface-2 p-2.5 border border-border-subtle" style={{ borderRadius: '2px' }}>
                 {explanation.recommended_investigation_steps.map((st, i) => (
                   <li key={i}>{st}</li>
                 ))}

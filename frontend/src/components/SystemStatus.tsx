@@ -62,7 +62,7 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({
   ];
 
   return (
-    <div className="p-4 rounded border border-border bg-surface-1 space-y-3">
+    <div className="p-4 border border-border bg-surface-1 space-y-3" style={{ borderRadius: '2px' }}>
       <div className="flex items-center justify-between border-b border-border-subtle pb-2">
         <h3 className="text-h2 font-semibold text-slate-100">
           Core Component Health & Subsystem State
@@ -89,15 +89,15 @@ export const SystemStatus: React.FC<SystemStatusProps> = ({
                 </td>
                 <td className="py-2 px-3 text-center">
                   {comp.status === 'OK' ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 border border-emerald-800" style={{ borderRadius: '2px' }}>
                       <CheckCircle2 className="w-3 h-3" /> ● OK
                     </span>
                   ) : comp.status === 'WARN' ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-400 bg-amber-950/60 px-2 py-0.5 border border-amber-800" style={{ borderRadius: '2px' }}>
                       <AlertTriangle className="w-3 h-3" /> ▲ WARN
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-red-400 bg-red-950/60 px-2 py-0.5 rounded border border-red-800">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono text-red-400 bg-red-950/60 px-2 py-0.5 border border-red-800" style={{ borderRadius: '2px' }}>
                       <XCircle className="w-3 h-3" /> ✕ ERROR
                     </span>
                   )}

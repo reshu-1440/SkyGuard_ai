@@ -16,7 +16,7 @@ export const SensorHealthPage: React.FC = () => {
   // Default to first station or degraded station on load
   useEffect(() => {
     if (!selectedStationId && stations.length > 0) {
-      const degraded = stations.find((s) => (s.latest_snapshot?.latest_health_score ?? 100) < 85);
+      const degraded = stations.find((s) => (s.latest_snapshot?.latest_health_score ?? null) !== null && (s.latest_snapshot?.latest_health_score ?? 100) < 85);
       setSelectedStationId(degraded ? degraded.station_id : stations[0].station_id);
     }
   }, [stations, selectedStationId]);
@@ -31,7 +31,7 @@ export const SensorHealthPage: React.FC = () => {
       render: (stn) => (
         <div>
           <span className="font-mono font-bold text-slate-100">{stn.station_id}</span>
-          <span className="text-[10px] text-slate-400 block">{stn.name}</span>
+          <span className="text-[10px] font-mono text-slate-400 block truncate">{stn.name}</span>
         </div>
       ),
       sortable: true,
@@ -42,10 +42,20 @@ export const SensorHealthPage: React.FC = () => {
       align: 'center',
       render: (stn) => {
         const score = stn.latest_snapshot?.latest_health_score ?? null;
-        const color = score === null ? 'text-slate-500' : score < 60 ? 'text-red-400' : score < 85 ? 'text-amber-400' : 'text-emerald-400';
+        if (score === null) {
+          return (
+            <div className="flex flex-col items-center leading-tight">
+              <span className="font-mono font-semibold text-slate-400">— / 100</span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">
+                INSUFFICIENT HISTORY
+              </span>
+            </div>
+          );
+        }
+        const color = score < 60 ? 'text-red-400' : score < 85 ? 'text-amber-400' : 'text-emerald-400';
         return (
           <span className={`font-mono font-bold ${color}`}>
-            {score !== null ? `${formatHealthScore(score)}/100` : '--/100'}
+            {formatHealthScore(score)} / 100
           </span>
         );
       },
@@ -56,13 +66,21 @@ export const SensorHealthPage: React.FC = () => {
       header: 'Status Tier',
       align: 'center',
       render: (stn) => {
-        const band = stn.latest_snapshot?.latest_health_band || 'HEALTHY';
-        let badgeStyle = 'bg-emerald-950 text-emerald-300 border-emerald-800';
-        if (band === 'DEGRADED') badgeStyle = 'bg-amber-950 text-amber-300 border-amber-800';
-        if (band === 'CRITICAL') badgeStyle = 'bg-red-950 text-red-300 border-red-800';
+        const score = stn.latest_snapshot?.latest_health_score ?? null;
+        const band = stn.latest_snapshot?.latest_health_band;
+        if (score === null || band === 'INSUFFICIENT_HISTORY') {
+          return (
+            <span className="px-1.5 py-0.5 text-[9px] font-mono uppercase border bg-slate-900 text-slate-400 border-slate-700" style={{ borderRadius: '2px' }}>
+              INSUFFICIENT HISTORY
+            </span>
+          );
+        }
+        let badgeStyle = 'bg-emerald-950/60 text-emerald-300 border-emerald-800';
+        if (band === 'DEGRADED') badgeStyle = 'bg-amber-950/60 text-amber-300 border-amber-800';
+        if (band === 'CRITICAL') badgeStyle = 'bg-red-950/60 text-red-300 border-red-800';
         return (
-          <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase border ${badgeStyle}`}>
-            {band}
+          <span className={`px-2 py-0.5 text-[10px] font-mono uppercase border ${badgeStyle}`} style={{ borderRadius: '2px' }}>
+            {band ? band.replace('_', ' ') : 'HEALTHY'}
           </span>
         );
       },
@@ -72,11 +90,14 @@ export const SensorHealthPage: React.FC = () => {
       key: 'anomalies_24h',
       header: '24h Flagged',
       align: 'center',
-      render: (stn) => (
-        <span className="font-mono text-slate-300">
-          {stn.latest_snapshot?.active_anomaly_count_24h ?? 0}
-        </span>
-      ),
+      render: (stn) => {
+        const count = stn.latest_snapshot?.active_anomaly_count_24h ?? 0;
+        return (
+          <span className={`font-mono ${count > 0 ? 'text-red-400 font-bold' : 'text-slate-400'}`}>
+            {count}
+          </span>
+        );
+      },
       sortable: true,
     },
     {
@@ -89,11 +110,12 @@ export const SensorHealthPage: React.FC = () => {
             e.stopPropagation();
             setSelectedStationId(stn.station_id);
           }}
-          className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-colors ${
+          className={`text-[11px] font-mono px-2 py-0.5 border transition-colors ${
             selectedStationId === stn.station_id
               ? 'bg-ops-weather text-slate-900 border-ops-weather font-bold'
               : 'text-ops-weather border-border hover:bg-surface-hover'
           }`}
+          style={{ borderRadius: '2px' }}
         >
           Inspect
         </button>
@@ -104,7 +126,7 @@ export const SensorHealthPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-3 border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3" style={{ borderRadius: '2px' }}>
         <div className="flex items-center gap-2">
           <HeartPulse className="w-5 h-5 text-ops-weather" />
           <div>
@@ -122,7 +144,8 @@ export const SensorHealthPage: React.FC = () => {
           <select
             value={selectedStationId}
             onChange={(e) => setSelectedStationId(e.target.value)}
-            className="bg-surface-2 border border-border text-slate-200 rounded px-2.5 py-1 text-data font-mono focus:outline-none"
+            className="bg-surface-2 border border-border text-slate-200 px-2.5 py-1 text-data font-mono focus:outline-none"
+            style={{ borderRadius: '2px' }}
           >
             {stations.map((s) => (
               <option key={s.station_id} value={s.station_id}>
@@ -137,7 +160,7 @@ export const SensorHealthPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left Column (5 cols): Selected Station Health Score & 5 Components */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="p-3 rounded bg-surface-2 border border-border flex items-center justify-between">
+          <div className="p-3 bg-surface-2 border border-border flex items-center justify-between" style={{ borderRadius: '2px' }}>
             <span className="font-mono text-data font-semibold text-slate-100">
               {selectedStationId ? `${selectedStationId} (${activeStation?.name ?? 'AWS'})` : 'Select Station'}
             </span>
@@ -153,7 +176,7 @@ export const SensorHealthPage: React.FC = () => {
 
           <HealthScore
             score={selectedHealth?.overall_health_score ?? activeStation?.latest_snapshot?.latest_health_score ?? null}
-            band={selectedHealth?.status_band ?? activeStation?.latest_snapshot?.latest_health_band ?? 'HEALTHY'}
+            band={selectedHealth?.status_band ?? activeStation?.latest_snapshot?.latest_health_band ?? (selectedHealth?.overall_health_score === null && (activeStation?.latest_snapshot?.latest_health_score ?? null) === null ? 'INSUFFICIENT_HISTORY' : 'HEALTHY')}
             trend={selectedHealth?.trend ?? 'STABLE'}
             showDisclaimer={true}
           />
@@ -161,15 +184,16 @@ export const SensorHealthPage: React.FC = () => {
           <HealthTrend
             components={selectedHealth?.component_scores}
             parameterHealth={selectedHealth?.parameter_health}
+            isInsufficientHistory={selectedHealth?.status_band === 'INSUFFICIENT_HISTORY' || (selectedHealth?.overall_health_score === null && (activeStation?.latest_snapshot?.latest_health_score ?? null) === null)}
           />
 
           {/* Maintenance Action Recommendation */}
-          <div className="p-4 rounded border border-border bg-surface-1">
+          <div className="p-4 border border-border bg-surface-1" style={{ borderRadius: '2px' }}>
             <h3 className="text-h2 font-semibold text-slate-100 flex items-center gap-2 mb-2">
               <Wrench className="w-4 h-4 text-ops-warning" />
               SOP Maintenance Recommendation
             </h3>
-            <p className="text-data text-slate-300 bg-surface-2 p-3 rounded border border-border-subtle leading-relaxed">
+            <p className="text-data text-slate-300 bg-surface-2 p-3 border border-border-subtle leading-relaxed" style={{ borderRadius: '2px' }}>
               {selectedHealth?.maintenance_recommendation ||
                 'All subcomponents within nominal calibrated tolerance. Standard scheduled calibration cycle applies.'}
             </p>

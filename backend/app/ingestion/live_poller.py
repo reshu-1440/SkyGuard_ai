@@ -235,6 +235,21 @@ class LiveSourcePoller:
 
             self.metrics["requests_success"] += 1
 
+            # Attach canonical RunContext provenance to live observation
+            try:
+                from backend.app.api.v1.deps import get_run_context_manager
+                ctx_mgr = get_run_context_manager()
+                active_ctx = ctx_mgr.get_context()
+                obs = obs.model_copy(update={
+                    "run_id": active_ctx.run_id,
+                    "source_type": active_ctx.source_type.value if hasattr(active_ctx.source_type, "value") else str(active_ctx.source_type),
+                    "source_name": active_ctx.source_name,
+                    "dataset_id": active_ctx.dataset_id,
+                    "dataset_version": active_ctx.dataset_version,
+                })
+            except Exception as prov_err:
+                logger.debug("Could not attach active RunContext provenance: %s", str(prov_err))
+
             # Freshness Calculation
             delay_seconds = (obs.ingestion_timestamp - obs.timestamp).total_seconds()
             is_stale = delay_seconds > self.stale_threshold_seconds
@@ -256,6 +271,13 @@ class LiveSourcePoller:
                 result = self.engine.process_observation(obs)
                 if result.status.value == "PROCESSED":
                     self.metrics["observations_ingested"] += 1
+                    try:
+                        ctx_mgr.update_context(
+                            observation_count=self.metrics["observations_ingested"],
+                            current_observation_index=self.metrics["observations_ingested"],
+                        )
+                    except Exception:
+                        pass
                 elif result.status.value == "DUPLICATE_SKIPPED":
                     self.metrics["duplicate_observations"] += 1
                     is_dup = True

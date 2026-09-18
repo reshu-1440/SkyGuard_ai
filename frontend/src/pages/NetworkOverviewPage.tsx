@@ -40,6 +40,26 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+// ─── Shared panel style ────────────────────────────────────────────────────────
+const PANEL: React.CSSProperties = {
+  background: '#0D1420',
+  border: '1px solid #1F2D45',
+  borderRadius: '2px',
+};
+
+// ─── Severity color lookup ─────────────────────────────────────────────────────
+const severityBadge = (state?: string) => {
+  switch (state) {
+    case 'HEALTHY':      return { border: '#10B981', text: '#6EE7B7',  dot: '#10B981', label: 'SOURCE: HEALTHY' };
+    case 'DEGRADED':     return { border: '#F59E0B', text: '#FCD34D',  dot: '#F59E0B', label: 'SOURCE: DEGRADED' };
+    case 'STALE':        return { border: '#EAB308', text: '#FDE047',  dot: '#EAB308', label: 'SOURCE: STALE FEED' };
+    case 'DISCONNECTED': return { border: '#EF4444', text: '#FCA5A5',  dot: '#EF4444', label: 'SOURCE: DISCONNECTED' };
+    case 'RATE_LIMITED': return { border: '#F97316', text: '#FDBA74',  dot: '#F97316', label: 'SOURCE: RATE LIMITED (429)' };
+    case 'AUTH_ERROR':   return { border: '#EF4444', text: '#FCA5A5',  dot: '#EF4444', label: 'SOURCE: AUTH ERROR (401/403)' };
+    default:             return { border: '#1F2D45', text: '#4A5B78',  dot: '#334155', label: 'SOURCE: UNKNOWN' };
+  }
+};
+
 export const NetworkOverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { context } = useRunContext();
@@ -49,7 +69,7 @@ export const NetworkOverviewPage: React.FC = () => {
   const { data: liveSource } = useLiveSourceHealth();
   const { data: replayStatus } = useReplayStatus();
   const { data: scenarios = [] } = useReplayScenarios();
-  
+
   const pollMutation = useTriggerLivePoll();
   const stepMutation = useStepReplay();
   const loadScenarioMutation = useLoadScenario();
@@ -63,28 +83,24 @@ export const NetworkOverviewPage: React.FC = () => {
   const activeStations = stations.filter(
     (s) => (s.latest_snapshot?.status || s.status) === 'ACTIVE'
   ).length;
-
+  const stationsWithHealth = stations.filter(
+    (s) => s.latest_snapshot?.latest_health_score !== null && s.latest_snapshot?.latest_health_score !== undefined
+  );
   const criticalCount = stations.filter(
-    (s) => (s.latest_snapshot?.latest_health_score ?? 100) < 60
+    (s) => (s.latest_snapshot?.latest_health_score ?? null) !== null && (s.latest_snapshot?.latest_health_score ?? 100) < 60
   ).length;
-  const warningCount = stations.filter(
-    (s) => {
-      const sc = s.latest_snapshot?.latest_health_score ?? 100;
-      return sc >= 60 && sc < 85;
-    }
-  ).length;
-
+  const warningCount = stations.filter((s) => {
+    const sc = s.latest_snapshot?.latest_health_score ?? null;
+    return sc !== null && sc >= 60 && sc < 85;
+  }).length;
   const meanHealth =
-    stations.length > 0
+    stationsWithHealth.length > 0
       ? Math.round(
-          stations.reduce(
-            (acc, s) => acc + (s.latest_snapshot?.latest_health_score ?? 100),
-            0
-          ) / stations.length
+          stationsWithHealth.reduce((acc, s) => acc + (s.latest_snapshot!.latest_health_score!), 0) /
+            stationsWithHealth.length
         )
-      : 100;
+      : null;
 
-  // Filtered station list for table
   const filteredStations = stations.filter(
     (s) =>
       s.station_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -98,32 +114,19 @@ export const NetworkOverviewPage: React.FC = () => {
       liveSource?.status === 'CONFIG_ERROR' ||
       liveSource?.status === 'RATE_LIMITED');
 
-  // Source state badge color helper
-  const getSourceBadge = (state?: string) => {
-    switch (state) {
-      case 'HEALTHY':
-        return { bg: 'bg-emerald-950 text-emerald-300 border-emerald-800', dot: 'bg-emerald-400', label: 'SOURCE: HEALTHY' };
-      case 'DEGRADED':
-        return { bg: 'bg-amber-950 text-amber-300 border-amber-800', dot: 'bg-amber-400', label: 'SOURCE: DEGRADED' };
-      case 'STALE':
-        return { bg: 'bg-yellow-950 text-yellow-300 border-yellow-800', dot: 'bg-yellow-400', label: 'SOURCE: STALE FEED' };
-      case 'DISCONNECTED':
-        return { bg: 'bg-red-950 text-red-300 border-red-800', dot: 'bg-red-400', label: 'SOURCE: DISCONNECTED' };
-      case 'RATE_LIMITED':
-        return { bg: 'bg-orange-950 text-orange-300 border-orange-800', dot: 'bg-orange-400', label: 'SOURCE: RATE LIMITED (429)' };
-      case 'AUTH_ERROR':
-        return { bg: 'bg-red-950 text-red-300 border-red-800', dot: 'bg-red-400', label: 'SOURCE: AUTH ERROR (401/403)' };
-      default:
-        return { bg: 'bg-slate-800 text-slate-300 border-slate-700', dot: 'bg-slate-400', label: 'SOURCE: UNKNOWN' };
-    }
-  };
-
-  const sourceBadge = getSourceBadge(liveSource?.source_state || liveSource?.status);
+  const liveBadge = severityBadge(liveSource?.source_state || liveSource?.status);
 
   const handleScenarioChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sId = e.target.value;
     setSelectedScenarioId(sId);
     loadScenarioMutation.mutate(sId);
+  };
+
+  const healthColor = (score: number | null) => {
+    if (score === null) return '#4A5B78';
+    if (score < 60) return '#EF4444';
+    if (score < 85) return '#F59E0B';
+    return '#10B981';
   };
 
   const columns: ColumnDef<StationItem>[] = [
@@ -132,8 +135,8 @@ export const NetworkOverviewPage: React.FC = () => {
       header: 'Station ID',
       render: (stn) => (
         <div>
-          <span className="font-mono font-semibold text-slate-100">{stn.station_id}</span>
-          <span className="text-[10px] text-slate-400 block truncate">{stn.name}</span>
+          <span className="font-mono font-semibold" style={{ color: '#E8EEF7' }}>{stn.station_id}</span>
+          <span className="font-mono text-[10px] block truncate" style={{ color: '#4A5B78' }}>{stn.name}</span>
         </div>
       ),
       sortable: true,
@@ -149,7 +152,7 @@ export const NetworkOverviewPage: React.FC = () => {
       header: 'Temp (°C)',
       align: 'right',
       render: (stn) => (
-        <span className="text-ops-weather font-mono">
+        <span className="font-mono" style={{ color: '#38BDF8' }}>
           {formatTemperature(stn.latest_snapshot?.latest_temperature_c, 1, false)}
         </span>
       ),
@@ -160,7 +163,7 @@ export const NetworkOverviewPage: React.FC = () => {
       header: 'Humidity (%)',
       align: 'right',
       render: (stn) => (
-        <span className="text-ops-humidity font-mono">
+        <span className="font-mono" style={{ color: '#34D399' }}>
           {formatHumidity(stn.latest_snapshot?.latest_humidity_pct, 0, false)}
         </span>
       ),
@@ -171,7 +174,7 @@ export const NetworkOverviewPage: React.FC = () => {
       header: 'Pressure (hPa)',
       align: 'right',
       render: (stn) => (
-        <span className="text-ops-pressure font-mono">
+        <span className="font-mono" style={{ color: '#818CF8' }}>
           {formatPressure(stn.latest_snapshot?.latest_pressure_hpa, 1, false)}
         </span>
       ),
@@ -183,8 +186,21 @@ export const NetworkOverviewPage: React.FC = () => {
       align: 'center',
       render: (stn) => {
         const score = stn.latest_snapshot?.latest_health_score ?? null;
-        const color = score === null ? 'text-slate-500' : score < 60 ? 'text-red-400' : score < 85 ? 'text-amber-400' : 'text-emerald-400';
-        return <span className={`font-mono font-medium ${color}`}>{formatHealthScore(score)}/100</span>;
+        if (score === null) {
+          return (
+            <div className="flex flex-col items-center leading-tight">
+              <span className="font-mono font-semibold text-slate-400">— / 100</span>
+              <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">
+                INSUFFICIENT HISTORY
+              </span>
+            </div>
+          );
+        }
+        return (
+          <span className="font-mono font-semibold" style={{ color: healthColor(score) }}>
+            {formatHealthScore(score)} / 100
+          </span>
+        );
       },
       sortable: true,
     },
@@ -193,10 +209,10 @@ export const NetworkOverviewPage: React.FC = () => {
       header: 'Last Seen (UTC)',
       align: 'right',
       render: (stn) => (
-        <span className="text-[11px] font-mono text-slate-400">
+        <span className="font-mono text-[11px]" style={{ color: '#4A5B78' }}>
           {stn.latest_snapshot?.last_seen_timestamp
             ? formatIsoUtc(stn.latest_snapshot.last_seen_timestamp, true)
-            : '--'}
+            : '—'}
         </span>
       ),
     },
@@ -207,11 +223,19 @@ export const NetworkOverviewPage: React.FC = () => {
       render: (stn) => {
         const count = stn.latest_snapshot?.active_anomaly_count_24h ?? 0;
         return count > 0 ? (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-red-950 text-red-300 border border-red-800 font-bold">
+          <span
+            className="font-mono text-[10px] font-bold px-1.5 py-0.5"
+            style={{
+              background: 'rgba(239,68,68,0.1)',
+              color: '#FCA5A5',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: '2px',
+            }}
+          >
             {count} FLAG
           </span>
         ) : (
-          <span className="text-[11px] font-mono text-slate-500">0</span>
+          <span className="font-mono text-[11px]" style={{ color: '#2A3E60' }}>0</span>
         );
       },
       sortable: true,
@@ -220,274 +244,309 @@ export const NetworkOverviewPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Live Fallback Warning Banner (If Live API is Unavailable) */}
+
+      {/* ── Live Source Unavailable Warning ────────────────────────────────────── */}
       {isLiveDisconnected && (
-        <div className="p-3 rounded bg-red-950/60 border border-red-800 flex flex-wrap items-center justify-between gap-3 text-red-200">
-          <div className="flex items-center gap-2 text-xs">
-            <AlertOctagon className="w-5 h-5 text-red-400 flex-shrink-0 animate-pulse" />
+        <div
+          className="p-3 flex flex-wrap items-center justify-between gap-3"
+          style={{
+            background: 'rgba(239,68,68,0.07)',
+            border: '1px solid rgba(239,68,68,0.3)',
+            borderLeft: '3px solid #EF4444',
+            borderRadius: '2px',
+          }}
+        >
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <AlertOctagon className="w-4 h-4 text-red-400 flex-shrink-0" />
             <div>
-              <strong className="font-mono text-red-300">LIVE SOURCE UNAVAILABLE</strong>
-              <p className="text-slate-300 text-[11px]">
-                Cannot connect to live weather telemetry upstream. Source state: DEGRADED / STALE. Displaying last verified provider telemetry.
+              <strong style={{ color: '#FCA5A5' }}>LIVE SOURCE UNAVAILABLE</strong>
+              <p className="mt-0.5" style={{ color: '#7B90B2', fontSize: '11px' }}>
+                Cannot connect to live weather telemetry upstream. Displaying last verified provider telemetry.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* 1. Deterministic Demo & Replay Operations Controller (STRICTLY GATED TO SYNTHETIC REPLAY) */}
+      {/* ── Synthetic Replay Controller (gated to SYNTHETIC_REPLAY) ────────────── */}
       {context?.mode === 'SYNTHETIC_REPLAY' && (
-        <div className="p-3 rounded border border-indigo-900/60 bg-gradient-to-r from-surface-1 via-indigo-950/20 to-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
+        <div
+          className="p-3 flex flex-wrap items-center justify-between gap-3"
+          style={{
+            background: 'rgba(167,139,250,0.05)',
+            border: '1px solid rgba(167,139,250,0.2)',
+            borderLeft: '3px solid #A78BFA',
+            borderRadius: '2px',
+          }}
+        >
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
-              <span className="font-mono font-bold text-slate-200 text-xs uppercase tracking-wider">
-                Synthetic Benchmark Controller:
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              <span className="font-mono font-bold text-[11px] uppercase tracking-wider" style={{ color: '#C4B5FD' }}>
+                Synthetic Benchmark Controller
               </span>
             </div>
 
-            {/* Scenario Selector */}
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedScenarioId}
-                onChange={handleScenarioChange}
-                className="bg-surface-2 border border-border text-slate-200 text-xs font-mono rounded px-2.5 py-1 focus:outline-none focus:border-indigo-500"
-              >
-                {scenarios.map((sc: any, idx: number) => {
-                  const sId = sc.scenario_id || sc.id || `scenario-${idx}`;
-                  const sName = sc.scenario_name || sc.name || sId;
-                  return (
-                    <option key={sId} value={sId}>
-                      {sName}
-                    </option>
-                  );
-                })}
-                {scenarios.length === 0 && (
-                  <option value="flagship_narrative">Flagship Multi-Fault Narrative</option>
-                )}
-              </select>
-            </div>
+            <select
+              value={selectedScenarioId}
+              onChange={handleScenarioChange}
+              className="font-mono text-[11px] px-2.5 py-1 border"
+              style={{ background: '#0D1420', borderColor: '#1F2D45', color: '#C4B5FD', borderRadius: '2px' }}
+            >
+              {scenarios.map((sc: any, idx: number) => {
+                const sId = sc.scenario_id || sc.id || `scenario-${idx}`;
+                const sName = sc.scenario_name || sc.name || sId;
+                return <option key={sId} value={sId}>{sName}</option>;
+              })}
+              {scenarios.length === 0 && (
+                <option value="flagship_narrative">Flagship Multi-Fault Narrative</option>
+              )}
+            </select>
 
-            {/* Replay State Metrics */}
-            <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400 border-l border-border-subtle pl-3">
-              <span>Progress: <strong className="text-indigo-300">{context?.current_observation_index ?? replayStatus?.current_index ?? 0}</strong> / {context?.observation_count ?? replayStatus?.total_queued_observations ?? 384}</span>
-              <span className="text-slate-600">|</span>
-              <span>Emitted: <strong className="text-slate-200">{context?.current_observation_index ?? replayStatus?.emitted_count ?? 0}</strong></span>
+            <div className="flex items-center gap-2 font-mono text-[11px] pl-3 border-l" style={{ borderColor: '#1F2D45', color: '#4A5B78' }}>
+              <span>Progress: <strong style={{ color: '#A78BFA' }}>{context?.current_observation_index ?? replayStatus?.current_index ?? 0}</strong> / {context?.observation_count ?? replayStatus?.total_queued_observations ?? 384}</span>
+              <span style={{ color: '#1F2D45' }}>|</span>
+              <span>Emitted: <strong style={{ color: '#E8EEF7' }}>{context?.current_observation_index ?? replayStatus?.emitted_count ?? 0}</strong></span>
             </div>
           </div>
 
-          {/* Demo Action Buttons */}
-          <div className="flex items-center gap-2 font-mono text-xs">
+          <div className="flex items-center gap-1.5 font-mono text-[11px]">
             <button
               onClick={() => stepMutation.mutate(1)}
               disabled={stepMutation.isPending}
-              className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-hover border border-border text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-              title="Step simulation forward by 1 station observation"
+              className="flex items-center gap-1 px-2.5 py-1 border disabled:opacity-50 transition-colors"
+              style={{ background: '#0D1420', borderColor: '#1F2D45', color: '#C4B5FD', borderRadius: '2px' }}
+              title="Step simulation forward by 1 observation"
             >
-              <Play className="w-3 h-3 text-indigo-400" />
-              <span>Step 1 AWS</span>
+              <Play className="w-3 h-3" />
+              Step 1 AWS
             </button>
-
             <button
               onClick={() => stepMutation.mutate(8)}
               disabled={stepMutation.isPending}
-              className="px-2.5 py-1 rounded bg-indigo-950 hover:bg-indigo-900 border border-indigo-700 text-indigo-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 font-semibold"
-              title="Step simulation forward by 1 network cycle (all 8 stations)"
+              className="flex items-center gap-1 px-2.5 py-1 border font-semibold disabled:opacity-50 transition-colors"
+              style={{ background: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.3)', color: '#A78BFA', borderRadius: '2px' }}
+              title="Step forward by 1 full network cycle (all 8 stations)"
             >
-              <FastForward className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Step Cycle (8 AWS)</span>
+              <FastForward className="w-3.5 h-3.5" />
+              Step Cycle (8 AWS)
             </button>
-
             <button
               onClick={() => resetMutation.mutate()}
               disabled={resetMutation.isPending}
-              className="px-2.5 py-1 rounded bg-surface-2 hover:bg-red-950/40 border border-border hover:border-red-800 text-slate-300 hover:text-red-300 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-              title="Safely reset replay pointer to initial step without mutating production database"
+              className="flex items-center gap-1 px-2.5 py-1 border disabled:opacity-50 transition-colors"
+              style={{ background: '#0D1420', borderColor: '#1F2D45', color: '#7B90B2', borderRadius: '2px' }}
+              title="Reset replay pointer to initial state"
             >
-              <RotateCcw className="w-3 h-3 text-slate-400" />
-              <span>Reset Demo</span>
+              <RotateCcw className="w-3 h-3" />
+              Reset
             </button>
           </div>
         </div>
       )}
 
-      {/* 2. Live Source & Upstream Ingestion Operations Bar (GATED STRICTLY TO OPEN_METEO / LIVE_MONITORING) */}
+      {/* ── Live Open-Meteo Operations Bar (gated to OPEN_METEO) ──────────────── */}
       {context?.source_type === 'OPEN_METEO' && (
-        <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
+        <div
+          className="p-3 flex flex-wrap items-center justify-between gap-3"
+          style={{ ...PANEL }}
+        >
           <div className="flex flex-wrap items-center gap-4">
-            {/* Upstream Source Badge */}
             <div className="flex items-center gap-2">
-              <Globe className="w-4 h-4 text-ops-weather" />
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-mono border flex items-center gap-1.5 font-bold ${sourceBadge.bg}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${sourceBadge.dot}`} />
-                  {sourceBadge.label}
-                </span>
-                <span className="text-[11px] font-mono text-slate-400">
-                  Provider: <strong className="text-slate-200 uppercase">{liveSource?.provider || 'Open-Meteo'}</strong>
-                </span>
-              </div>
+              <Globe className="w-4 h-4" style={{ color: '#38BDF8' }} />
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 font-mono text-[10px] font-bold border"
+                style={{
+                  background: `${liveBadge.border}10`,
+                  borderColor: `${liveBadge.border}40`,
+                  color: liveBadge.text,
+                  borderRadius: '2px',
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: liveBadge.dot }} />
+                {liveBadge.label}
+              </span>
+              <span className="font-mono text-[11px]" style={{ color: '#4A5B78' }}>
+                Provider: <strong style={{ color: '#E8EEF7' }}>{(liveSource?.provider || 'Open-Meteo').toUpperCase()}</strong>
+              </span>
             </div>
 
-            {/* Station Freshness Layer Breakdown */}
-            <div className="flex items-center gap-2 font-mono text-[11px] border-l border-border-subtle pl-4">
-              <span className="text-slate-400 text-[10px] uppercase">Telemetry Ingestion:</span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
+            <div className="flex items-center gap-2 font-mono text-[11px] pl-4 border-l" style={{ borderColor: '#1F2D45' }}>
+              <span className="px-1.5 py-0.5" style={{ background: 'rgba(16,185,129,0.1)', color: '#6EE7B7', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '2px', fontSize: '10px' }}>
                 {liveSource?.counts?.live_stations ?? activeStations} LIVE
               </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800">
+              <span className="px-1.5 py-0.5" style={{ background: 'rgba(245,158,11,0.1)', color: '#FCD34D', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '2px', fontSize: '10px' }}>
                 {liveSource?.counts?.stale_stations ?? 0} STALE
               </span>
-              <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-300 border border-red-800">
+              <span className="px-1.5 py-0.5" style={{ background: 'rgba(239,68,68,0.1)', color: '#FCA5A5', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '2px', fontSize: '10px' }}>
                 {liveSource?.counts?.offline_stations ?? (totalStations - activeStations)} OFFLINE
               </span>
             </div>
 
-            {/* Latency & Last Update */}
-            <div className="hidden lg:flex items-center gap-3 font-mono text-[11px] border-l border-border-subtle pl-4 text-slate-400">
-              <div>API Latency: <strong className="text-slate-200">{formatLatency(liveSource?.metrics?.mean_request_latency_ms ?? liveSource?.last_request_latency_ms ?? 45.0)}</strong></div>
-              <div>Last Ingestion: <span className="text-slate-300">{liveSource?.metrics?.last_poll_cycle_start ? formatIsoUtc(liveSource.metrics.last_poll_cycle_start, true) : 'Recent'}</span></div>
+            <div className="hidden lg:flex items-center gap-3 font-mono text-[11px] pl-4 border-l" style={{ borderColor: '#1F2D45', color: '#4A5B78' }}>
+              <span>Latency: <strong style={{ color: '#E8EEF7' }}>{formatLatency(liveSource?.metrics?.mean_request_latency_ms ?? liveSource?.last_request_latency_ms ?? 45.0)}</strong></span>
+              <span>Last ingestion: <span style={{ color: '#7B90B2' }}>{liveSource?.metrics?.last_poll_cycle_start ? formatIsoUtc(liveSource.metrics.last_poll_cycle_start, true) : 'Recent'}</span></span>
             </div>
           </div>
 
-          {/* Manual Poll Trigger */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => pollMutation.mutate()}
-              disabled={pollMutation.isPending}
-              className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-hover border border-border text-[11px] font-mono text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-              title="Trigger on-demand live poll cycle"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${pollMutation.isPending ? 'animate-spin text-ops-weather' : 'text-slate-400'}`} />
-              <span>{pollMutation.isPending ? 'Polling...' : 'Poll Now'}</span>
-            </button>
-          </div>
+          <button
+            onClick={() => pollMutation.mutate()}
+            disabled={pollMutation.isPending}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 font-mono text-[11px] border disabled:opacity-50 transition-colors"
+            style={{ background: '#0D1420', borderColor: '#1F2D45', color: '#7B90B2', borderRadius: '2px' }}
+            title="Trigger on-demand live poll cycle"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${pollMutation.isPending ? 'animate-spin text-ops-weather' : ''}`} />
+            {pollMutation.isPending ? 'Polling...' : 'Poll Now'}
+          </button>
         </div>
       )}
 
-      {/* Historical Dataset Operations Bar */}
+      {/* ── Historical Dataset Bar (gated to HISTORICAL_CSV) ──────────────────── */}
       {context?.source_type === 'HISTORICAL_CSV' && (
-        <div className="p-3 rounded border border-blue-900/50 bg-blue-950/20 flex flex-wrap items-center justify-between gap-3 text-data font-mono text-[11px]">
+        <div
+          className="p-3 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px]"
+          style={{
+            background: 'rgba(96,165,250,0.05)',
+            border: '1px solid rgba(96,165,250,0.2)',
+            borderLeft: '3px solid #60A5FA',
+            borderRadius: '2px',
+          }}
+        >
           <div className="flex items-center gap-3">
-            <span className="px-2 py-0.5 rounded text-[10px] bg-blue-950 text-blue-300 border border-blue-800 font-bold">
+            <span className="px-2 py-0.5 font-bold text-[10px]" style={{ background: 'rgba(96,165,250,0.1)', color: '#93C5FD', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '2px' }}>
               HISTORICAL DATASET
             </span>
-            <span className="text-slate-300">
-              Dataset: <strong className="text-slate-100">{context.dataset_id || 'IMD_NCR_2023_HISTORICAL.csv'}</strong>
+            <span style={{ color: '#7B90B2' }}>
+              Dataset: <strong style={{ color: '#E8EEF7' }}>{context.dataset_id || 'IMD_NCR_2023_HISTORICAL.csv'}</strong>
             </span>
-            <span className="text-slate-400">
-              Observations: <strong className="text-slate-200">{context.observation_count.toLocaleString()}</strong> across <strong className="text-slate-200">{context.station_count}</strong> AWS
+            <span style={{ color: '#4A5B78' }}>
+              Observations: <strong style={{ color: '#E8EEF7' }}>{context.observation_count.toLocaleString()}</strong> across <strong style={{ color: '#E8EEF7' }}>{context.station_count}</strong> AWS
             </span>
           </div>
-          <div className="text-slate-400">
-            Mode: <strong className="text-blue-300">{context.mode === 'HISTORICAL_REPLAY' ? 'Sequential Replay' : 'Batch Analysis'}</strong>
-          </div>
+          <span style={{ color: '#4A5B78' }}>
+            Mode: <strong style={{ color: '#93C5FD' }}>{context.mode === 'HISTORICAL_REPLAY' ? 'Sequential Replay' : 'Batch Analysis'}</strong>
+          </span>
         </div>
       )}
 
-
-      {/* 3. Compact Network Operational Status Strip */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
-        <div className="flex flex-wrap items-center gap-5">
-          {/* Active Network Stations */}
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-ops-weather" />
+      {/* ── Network Operational Status Strip ─────────────────────────────────── */}
+      <div className="p-3 flex flex-wrap items-center justify-between gap-4" style={PANEL}>
+        <div className="flex flex-wrap items-center gap-6">
+          {/* Stations Online */}
+          <div className="flex items-center gap-2.5">
+            <Radio className="w-4 h-4 flex-shrink-0" style={{ color: '#38BDF8' }} />
             <div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase block">Stations Online</span>
-              <span className="text-h2 font-mono font-bold text-slate-100">
-                {activeStations} <span className="text-slate-500 text-data font-normal">/ {totalStations}</span>
+              <span className="kpi-label block">Stations Online</span>
+              <span className="kpi-value" style={{ fontSize: '22px' }}>
+                {activeStations}{' '}
+                <span style={{ color: '#2A3E60', fontSize: '14px', fontWeight: 400 }}>/ {totalStations}</span>
               </span>
             </div>
           </div>
 
-          {/* Active Anomalies Alert Count */}
-          <div className="flex items-center gap-2">
-            <AlertTriangle className={`w-4 h-4 ${activeAnomalies.length > 0 ? 'text-red-400 animate-pulse' : 'text-slate-400'}`} />
+          {/* Active Anomalies */}
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle
+              className={`w-4 h-4 flex-shrink-0 ${activeAnomalies.length > 0 ? 'text-red-400' : ''}`}
+              style={{ color: activeAnomalies.length > 0 ? '#EF4444' : '#2A3E60' }}
+            />
             <div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase block">Active Anomalies</span>
-              <span className={`text-h2 font-mono font-bold ${activeAnomalies.length > 0 ? 'text-red-400' : 'text-slate-100'}`}>
+              <span className="kpi-label block">Active Anomalies</span>
+              <span className="kpi-value" style={{ fontSize: '22px', color: activeAnomalies.length > 0 ? '#EF4444' : '#E8EEF7' }}>
                 {activeAnomalies.length}
               </span>
             </div>
           </div>
 
-          {/* Critical / Warning Stations Breakdown */}
-          <div className="flex items-center gap-3 font-mono text-[11px] border-l border-border-subtle pl-4">
-            <div>
-              <span className="text-slate-400 text-[10px] uppercase block">Sensor Degradation:</span>
-              <span className="font-semibold text-amber-400">{warningCount} WARN</span>
-              <span className="text-slate-500 mx-1">·</span>
-              <span className="font-semibold text-red-400">{criticalCount} CRIT</span>
+          {/* Sensor Degradation Summary */}
+          <div className="pl-4 border-l" style={{ borderColor: '#1F2D45' }}>
+            <span className="kpi-label block">Sensor Degradation</span>
+            <div className="flex items-center gap-2 mt-0.5 font-mono text-[12px] font-semibold">
+              <span style={{ color: '#F59E0B' }}>{warningCount} WARN</span>
+              <span style={{ color: '#1F2D45' }}>·</span>
+              <span style={{ color: '#EF4444' }}>{criticalCount} CRIT</span>
             </div>
           </div>
 
-          {/* Network Sensor Health Index */}
-          <div className="flex items-center gap-2 border-l border-border-subtle pl-4">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          {/* Mean Health Index */}
+          <div className="flex items-center gap-2.5 pl-4 border-l" style={{ borderColor: '#1F2D45' }}>
+            <ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: meanHealth !== null ? '#10B981' : '#4A5B78' }} />
             <div>
-              <span className="text-[10px] font-mono text-slate-400 uppercase block">Sensor Health Index</span>
-              <span className="text-h2 font-mono font-bold text-emerald-400">
-                {meanHealth}/100
-              </span>
+              <span className="kpi-label block">Network Health Index</span>
+              {meanHealth !== null ? (
+                <span className="kpi-value" style={{ fontSize: '22px', color: healthColor(meanHealth) }}>
+                  {meanHealth} <span style={{ color: '#4A5B78', fontSize: '14px', fontWeight: 400 }}>/ 100</span>
+                </span>
+              ) : (
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <span className="font-mono font-bold text-slate-300" style={{ fontSize: '18px' }}>— / 100</span>
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">INSUFFICIENT HISTORY</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Pipeline Latency & Refresh Cadence */}
-        <div className="text-right text-[11px] font-mono text-slate-400 hidden md:block">
-          <div>Pipeline Latency: <strong className="text-slate-300">{formatLatency(systemHealth?.mean_pipeline_latency_ms ?? 5.8)}</strong></div>
-          <div>Operating Mode: <span className="text-indigo-400 font-semibold">{context?.mode ? context.mode.replace('_', ' ') : 'SYNTHETIC REPLAY'}</span></div>
+        {/* Pipeline metadata */}
+        <div className="text-right font-mono text-[11px]" style={{ color: '#2A3E60' }}>
+          <div>Pipeline Latency: <strong style={{ color: '#7B90B2' }}>{formatLatency(systemHealth?.mean_pipeline_latency_ms ?? 0)}</strong></div>
+          <div>Mode: <span style={{ color: '#A78BFA', fontWeight: 600 }}>{context?.mode ? context.mode.replace(/_/g, ' ') : 'SYNTHETIC REPLAY'}</span></div>
         </div>
       </div>
 
-      {/* 4. Middle Row: Spatial Map + Active Alert Feed */}
+      {/* ── Map + Anomaly Stream ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-h2 font-semibold text-slate-100 flex items-center gap-2">
+        {/* Map panel */}
+        <div className="lg:col-span-2" style={PANEL}>
+          <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b" style={{ borderColor: '#1F2D45' }}>
+            <h2 className="font-semibold text-[13px]" style={{ color: '#E8EEF7' }}>
               Automatic Weather Station Topology
             </h2>
-            <span className="text-[11px] font-mono text-slate-400">
-              Interactive Leaflet GIS Layer
+            <span className="font-mono text-[10px]" style={{ color: '#2A3E60' }}>
+              Interactive GIS · Leaflet
             </span>
           </div>
           <NetworkMap
             stations={stations}
-            height="380px"
+            height="375px"
             onSelectStation={(id) => navigate(`/stations/${id}`)}
           />
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-h2 font-semibold text-slate-100">
+        {/* Anomaly feed panel */}
+        <div style={PANEL}>
+          <div className="flex items-center justify-between px-3 pt-3 pb-2 border-b" style={{ borderColor: '#1F2D45' }}>
+            <h2 className="font-semibold text-[13px]" style={{ color: '#E8EEF7' }}>
               Active Anomaly Stream
             </h2>
             <button
               onClick={() => navigate('/anomalies')}
-              className="text-[11px] font-mono text-ops-weather hover:underline"
+              className="font-mono text-[11px] hover:underline transition-colors"
+              style={{ color: '#38BDF8' }}
             >
-              View all &rarr;
+              View all →
             </button>
           </div>
           <AlertList anomalies={activeAnomalies} isLoading={isLoadingAnomalies} limit={5} />
         </div>
       </div>
 
-      {/* 5. Bottom Row: High-Density Station Telemetry Matrix */}
-      <div className="space-y-2 pt-2">
+      {/* ── Network Telemetry Matrix ──────────────────────────────────────────── */}
+      <div className="space-y-2 pt-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-h2 font-semibold text-slate-100">
+          <h2 className="font-semibold text-[13px]" style={{ color: '#E8EEF7' }}>
             Network Telemetry Matrix
           </h2>
-          <div className="relative w-64">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5" style={{ color: '#4A5B78' }} />
             <input
               type="text"
               placeholder="Search station ID or location..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 bg-surface-2 border border-border rounded text-data font-mono text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-ops-weather"
+              className="pl-8 pr-3 py-1.5 font-mono text-[12px] border"
+              style={{ background: '#0D1420', borderColor: '#1F2D45', color: '#E8EEF7', width: '240px', borderRadius: '2px' }}
             />
           </div>
         </div>

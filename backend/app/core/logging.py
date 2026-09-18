@@ -85,8 +85,13 @@ def setup_logging(
     filter_sensitive = SensitiveDataFilter()
     handlers: list[logging.Handler] = []
 
-    # Console Handler (stdout)
-    console_handler = logging.StreamHandler(sys.stdout)
+    class AutoFlushStreamHandler(logging.StreamHandler):
+        def emit(self, record: logging.LogRecord) -> None:
+            super().emit(record)
+            self.flush()
+
+    # Console Handler (stdout) with instant flushing
+    console_handler = AutoFlushStreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.addFilter(filter_sensitive)
     handlers.append(console_handler)
@@ -105,8 +110,8 @@ def setup_logging(
         force=True
     )
 
-    # Quieten external noisy loggers
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    # Keep informative access logs
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 
 
 def get_logger(name: str) -> logging.Logger:

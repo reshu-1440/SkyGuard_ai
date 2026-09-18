@@ -46,6 +46,10 @@ class ObservationUpdatedPayload(BaseModel):
     dew_point_c: Optional[float] = None
     data_quality_status: str
     freshness_seconds: int = 0
+    received_timestamp: Optional[str] = None
+    run_id: Optional[str] = None
+    source_type: Optional[str] = None
+    source_name: Optional[str] = None
 
 
 class AnomalyCreatedPayload(BaseModel):
@@ -124,6 +128,9 @@ class WebSocketEnvelope(BaseModel):
     station_id: Optional[str] = None
     payload: Dict[str, Any]
     schema_version: str = "1.0"
+    run_id: Optional[str] = None
+    source_type: Optional[str] = None
+    source_name: Optional[str] = None
 
     @classmethod
     def create(
@@ -133,6 +140,9 @@ class WebSocketEnvelope(BaseModel):
         payload: Union[BaseModel, Dict[str, Any]],
         station_id: Optional[str] = None,
         timestamp: Optional[Union[str, datetime]] = None,
+        run_id: Optional[str] = None,
+        source_type: Optional[str] = None,
+        source_name: Optional[str] = None,
     ) -> "WebSocketEnvelope":
         """Factory method to construct a validated envelope with current UTC timestamp if omitted."""
         if timestamp is None:
@@ -151,4 +161,7 @@ class WebSocketEnvelope(BaseModel):
             station_id=station_id,
             payload=payload_dict,
             schema_version="1.0",
+            run_id=run_id or payload_dict.get("run_id"),
+            source_type=source_type or payload_dict.get("source_type"),
+            source_name=source_name or payload_dict.get("source_name"),
         )

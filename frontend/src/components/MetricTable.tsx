@@ -45,40 +45,45 @@ export function MetricTable<T>({
   }
 
   return (
-    <div className="w-full overflow-x-auto rounded border border-border bg-surface-1">
-      <table className="w-full text-left border-collapse table-dense">
+    <div
+      className="w-full overflow-x-auto"
+      style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px' }}
+    >
+      <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="bg-surface-2/70 border-b border-border">
+          <tr style={{ background: '#090D14', borderBottom: '1px solid #1F2D45' }}>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`py-2 px-3 text-[11px] font-mono text-slate-400 uppercase tracking-wider ${
-                  col.sortable ? 'cursor-pointer select-none hover:text-slate-200' : ''
-                } ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'}`}
-                style={{ width: col.width }}
+                className={col.sortable ? 'cursor-pointer select-none' : ''}
+                style={{
+                  padding: '7px 12px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: col.sortable && sortColumn === col.key ? '#38BDF8' : '#2A3E60',
+                  textAlign: col.align === 'right' ? 'right' : col.align === 'center' ? 'center' : 'left',
+                  whiteSpace: 'nowrap',
+                }}
                 onClick={() => col.sortable && onSort && onSort(col.key)}
               >
-                <div
-                  className={`inline-flex items-center gap-1 ${
-                    col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'
-                  }`}
-                >
-                  <span>{col.header}</span>
+                <span className="inline-flex items-center gap-1" style={{
+                  justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
+                }}>
+                  {col.header}
                   {col.sortable && sortColumn === col.key && (
-                    <span>
-                      {sortDirection === 'asc' ? (
-                        <ChevronUp className="w-3.5 h-3.5 text-ops-weather" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5 text-ops-weather" />
-                      )}
-                    </span>
+                    sortDirection === 'asc'
+                      ? <ChevronUp className="w-3 h-3 text-ops-weather" />
+                      : <ChevronDown className="w-3 h-3 text-ops-weather" />
                   )}
-                </div>
+                </span>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border-subtle">
+        <tbody>
           {data.map((row, idx) => {
             const rowId = rowIdKey ? String(row[rowIdKey]) : String(idx);
             const isSelected = selectedRowId === rowId;
@@ -87,20 +92,34 @@ export function MetricTable<T>({
               <tr
                 key={rowId}
                 onClick={() => onRowClick && onRowClick(row)}
-                className={`transition-colors ${
-                  onRowClick ? 'cursor-pointer hover:bg-surface-hover/80' : ''
-                } ${isSelected ? 'bg-surface-2 border-l-2 border-l-ops-weather' : 'hover:bg-surface-2/40'}`}
+                style={{
+                  borderBottom: idx < data.length - 1 ? '1px solid #152030' : 'none',
+                  borderLeft: isSelected ? '2px solid #38BDF8' : '2px solid transparent',
+                  background: isSelected ? 'rgba(56,189,248,0.05)' : 'transparent',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                  transition: 'background 120ms ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) (e.currentTarget as HTMLElement).style.background = '#131C2E';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                }}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`py-2 px-3 text-data text-slate-200 ${
-                      col.align === 'right' ? 'text-right font-mono' : col.align === 'center' ? 'text-center' : 'text-left'
-                    }`}
+                    style={{
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      color: '#E8EEF7',
+                      textAlign: col.align === 'right' ? 'right' : col.align === 'center' ? 'center' : 'left',
+                      fontFamily: col.align === 'right' ? "'JetBrains Mono', monospace" : undefined,
+                    }}
                   >
                     {col.render
                       ? col.render(row)
-                      : String((row as Record<string, unknown>)[col.key] ?? '--')}
+                      : String((row as Record<string, unknown>)[col.key] ?? '—')}
                   </td>
                 ))}
               </tr>

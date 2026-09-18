@@ -167,7 +167,8 @@ export const LiveMonitoringPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header & Filter Controls with Polling Indicator */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-3 flex flex-wrap items-center justify-between gap-3"
+        style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px' }}>
         <div className="flex items-center gap-3">
           <div className="relative w-64">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
@@ -176,7 +177,8 @@ export const LiveMonitoringPage: React.FC = () => {
               placeholder="Filter station ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 bg-surface-2 border border-border rounded text-data font-mono text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-ops-weather"
+              className="w-full pl-8 pr-3 py-1.5 font-mono text-[12px] border"
+              style={{ background: '#131C2E', borderColor: '#1F2D45', color: '#E8EEF7', borderRadius: '2px' }}
             />
           </div>
 
@@ -185,7 +187,8 @@ export const LiveMonitoringPage: React.FC = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-surface-2 border border-border text-slate-300 rounded px-2 py-1 text-data font-mono focus:outline-none"
+              className="px-2 py-1 font-mono text-[11px] border"
+              style={{ background: '#131C2E', borderColor: '#1F2D45', color: '#94A3B8', borderRadius: '2px' }}
             >
               <option value="ALL">Status: ALL</option>
               <option value="ACTIVE">ACTIVE</option>
@@ -226,7 +229,7 @@ export const LiveMonitoringPage: React.FC = () => {
             </div>
           ) : (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-2 border border-border text-[11px] font-mono text-emerald-400">
-              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+              <Radio className="w-3.5 h-3.5 text-emerald-400" />
               <span>LIVE STREAM · {streamState.transportMode}</span>
             </div>
           )}
@@ -238,7 +241,8 @@ export const LiveMonitoringPage: React.FC = () => {
 
       {/* Approved Compact Sparkline Strip for Flagged / Selected Station */}
       {selectedStationId ? (
-        <div className="p-3 rounded border border-border bg-surface-1">
+        <div className="p-3"
+          style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px' }}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-mono text-slate-300 font-semibold uppercase">
@@ -265,7 +269,8 @@ export const LiveMonitoringPage: React.FC = () => {
           />
         </div>
       ) : (
-        <div className="p-4 rounded border border-border bg-surface-1 text-center font-mono text-data text-slate-400">
+        <div className="p-4 text-center font-mono text-[12px]"
+          style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px', color: '#4A5B78' }}>
           <Clock className="w-4 h-4 mx-auto mb-1 text-slate-500" />
           Select a station in the telemetry matrix below to view live sparklines.
         </div>

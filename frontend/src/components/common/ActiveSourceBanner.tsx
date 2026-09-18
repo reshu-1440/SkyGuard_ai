@@ -1,7 +1,6 @@
 import React from 'react';
 import { RunContext } from '../../types/runtime';
-import { Play, Pause, RotateCcw, FastForward } from 'lucide-react';
-
+import { Play, Pause, RotateCcw, FastForward, ChevronDown, Database, History } from 'lucide-react';
 
 interface ActiveSourceBannerProps {
   context: RunContext | null;
@@ -14,6 +13,22 @@ interface ActiveSourceBannerProps {
   onSetSpeed?: (speed: number) => void;
 }
 
+// Source mode left-stripe color
+const SOURCE_STRIPE: Record<string, string> = {
+  SYNTHETIC_VALIDATION: '#A78BFA',
+  HISTORICAL_CSV:       '#60A5FA',
+  OPEN_METEO:           '#00C9A7',
+  IMD_AWS:              '#F59E0B',
+};
+
+// Status dot color — communicates operational state
+const STATUS_COLOR: Record<string, string> = {
+  RUNNING:   '#10B981',
+  PAUSED:    '#F59E0B',
+  COMPLETED: '#60A5FA',
+  IDLE:      '#4A5B78',
+};
+
 export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
   context,
   onOpenSelector,
@@ -24,134 +39,156 @@ export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
   onReset,
   onSetSpeed,
 }) => {
+  const isReplay = context?.mode === 'SYNTHETIC_REPLAY' || context?.mode === 'HISTORICAL_REPLAY';
+  const isRunning = context?.status === 'RUNNING';
+  const speed = context?.replay_speed || 60;
+  const speeds = [1, 10, 60, 300];
+
+  const stripeColor = context ? (SOURCE_STRIPE[context.source_type] ?? '#4A5B78') : '#4A5B78';
+  const statusColor = context ? (STATUS_COLOR[context.status] ?? '#4A5B78') : '#4A5B78';
+
+  // Determine mode-specific bottom border class
+  const modeClass = !context ? 'mode-idle'
+    : context.source_type === 'SYNTHETIC_VALIDATION' ? 'mode-synthetic'
+    : context.source_type === 'HISTORICAL_CSV' ? 'mode-historical'
+    : context.source_type === 'OPEN_METEO' ? 'mode-live'
+    : 'mode-idle';
+
   if (!context) {
     return (
-      <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 text-slate-400 text-xs flex items-center justify-between">
+      <div
+        className={`px-4 py-2 flex items-center justify-between border-b text-[11px] font-mono text-slate-500 ${modeClass}`}
+        style={{ background: '#0A0F18', borderColor: '#1F2D45' }}
+      >
         <span>Initializing SkyGuard Data Source Control Plane...</span>
       </div>
     );
   }
 
-  const getSourceBadgeColor = (source: string) => {
-    switch (source) {
-      case 'SYNTHETIC_VALIDATION':
-        return 'bg-purple-900/60 text-purple-300 border-purple-700/50';
-      case 'HISTORICAL_CSV':
-        return 'bg-blue-900/60 text-blue-300 border-blue-700/50';
-      case 'OPEN_METEO':
-        return 'bg-emerald-900/60 text-emerald-300 border-emerald-700/50';
-      case 'IMD_AWS':
-        return 'bg-amber-900/60 text-amber-300 border-amber-700/50';
-      default:
-        return 'bg-slate-800 text-slate-300 border-slate-700';
-    }
-  };
-
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'RUNNING':
-        return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
-      case 'PAUSED':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/40';
-      case 'COMPLETED':
-        return 'bg-sky-500/20 text-sky-400 border-sky-500/40';
-      default:
-        return 'bg-slate-700/40 text-slate-400 border-slate-600/40';
-    }
-  };
-
-  const isReplay = context.mode === 'SYNTHETIC_REPLAY' || context.mode === 'HISTORICAL_REPLAY';
-  const isRunning = context.status === 'RUNNING';
-  const speed = context.replay_speed || 60;
-  const speeds = [1, 10, 60, 300];
-
   return (
-    <div className="bg-slate-900 border-b border-slate-800 px-4 py-1.5 flex flex-wrap items-center justify-between text-xs gap-2 shadow-inner">
-      <div className="flex items-center flex-wrap gap-2.5">
-        {/* Source selector trigger */}
+    <div
+      className={`flex flex-wrap items-center justify-between gap-2 px-4 border-b ${modeClass}`}
+      style={{ background: '#0A0F18', minHeight: '36px' }}
+    >
+      {/* Left section: source selector + badges + replay controls */}
+      <div className="flex items-center flex-wrap gap-2 py-1.5">
+
+        {/* Source selector trigger — left stripe communicates active source type */}
         <button
           onClick={onOpenSelector}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold border border-slate-700 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 font-mono text-[11px] font-semibold border text-slate-200 hover:text-white transition-colors group"
+          style={{
+            background: '#0D1420',
+            borderColor: '#1F2D45',
+            borderLeft: `2px solid ${stripeColor}`,
+            borderRadius: '2px',
+          }}
           title="Change active observation source"
         >
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
           <span>DATA SOURCE</span>
-          <span className="text-slate-400 text-[10px]">▼</span>
+          <ChevronDown className="w-3 h-3 text-slate-500 group-hover:text-slate-300" />
         </button>
 
-        {/* Display Active Badges */}
-        <div className="flex items-center flex-wrap gap-1.5">
+        {/* Source + Mode tags */}
+        <div className="flex items-center gap-1.5">
           <span
-            className={`px-2 py-0.5 rounded font-mono font-medium border ${getSourceBadgeColor(
-              context.source_type
-            )}`}
+            className="px-2 py-0.5 font-mono text-[10px] font-semibold border"
+            style={{
+              background: 'rgba(0,0,0,0.3)',
+              borderColor: `${stripeColor}40`,
+              color: stripeColor,
+              borderRadius: '2px',
+            }}
           >
-            SOURCE: {context.source_type.replace('_', ' ')}
-          </span>
-
-          <span className="px-2 py-0.5 rounded font-mono font-medium bg-slate-800 text-slate-300 border border-slate-700">
-            MODE: {context.mode.replace('_', ' ')}
-          </span>
-
-          <span className="px-2 py-0.5 rounded font-mono font-medium bg-slate-800 text-slate-300 border border-slate-700">
-            TRANSPORT: {context.transport}
+            {context.source_type.replace(/_/g, ' ')}
           </span>
 
           <span
-            className={`px-2 py-0.5 rounded font-mono font-bold border ${getStatusBadgeColor(
-              context.status
-            )}`}
+            className="px-2 py-0.5 font-mono text-[10px] border text-slate-400"
+            style={{ background: '#0D1420', borderColor: '#1F2D45', borderRadius: '2px' }}
           >
+            {context.mode.replace(/_/g, ' ')}
+          </span>
+
+          <span
+            className="px-2 py-0.5 font-mono text-[10px] border text-slate-500"
+            style={{ background: '#0D1420', borderColor: '#1F2D45', borderRadius: '2px' }}
+          >
+            {context.transport}
+          </span>
+
+          {/* Status indicator — dot color communicates state, no animation unless state demands it */}
+          <span
+            className="flex items-center gap-1 px-2 py-0.5 font-mono text-[10px] font-bold border"
+            style={{
+              background: '#0D1420',
+              borderColor: `${statusColor}40`,
+              color: statusColor,
+              borderRadius: '2px',
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: statusColor }}
+            />
             {context.status}
           </span>
         </div>
 
-        {/* Replay Controls (When in Replay Mode) */}
+        {/* Replay transport controls — shown only in replay mode */}
         {isReplay && (
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-700/80">
+          <div
+            className="flex items-center gap-1 px-2 py-1 border"
+            style={{ background: '#0A0E18', borderColor: '#1F2D45', borderRadius: '2px' }}
+          >
+            {/* Start / Pause */}
             {isRunning ? (
               <button
                 onClick={onPause}
-                className="px-2 py-0.5 rounded bg-amber-950/80 hover:bg-amber-900 text-amber-300 font-semibold flex items-center gap-1 border border-amber-700/60 transition-colors"
+                className="flex items-center gap-1 px-2 py-0.5 font-mono text-[10px] font-semibold border text-amber-300 hover:bg-amber-950/30 transition-colors"
+                style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)', borderRadius: '2px' }}
                 title="Pause continuous replay stream"
               >
                 <Pause className="w-3 h-3 text-amber-400" />
-                <span>PAUSE</span>
+                PAUSE
               </button>
             ) : (
               <button
                 onClick={onStart}
-                className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-semibold flex items-center gap-1 border border-emerald-700/60 transition-colors"
+                className="flex items-center gap-1 px-2 py-0.5 font-mono text-[10px] font-semibold border text-emerald-300 hover:bg-emerald-950/30 transition-colors"
+                style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)', borderRadius: '2px' }}
                 title="Start continuous replay stream"
               >
                 <Play className="w-3 h-3 text-emerald-400 fill-emerald-400" />
-                <span>START</span>
+                START
               </button>
             )}
 
             <button
               onClick={onReset}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center gap-1 border border-slate-600/60 transition-colors"
-              title="Reset replay simulation"
+              className="flex items-center gap-1 px-2 py-0.5 font-mono text-[10px] border text-slate-400 hover:text-slate-200 hover:bg-surface-hover transition-colors"
+              style={{ background: '#0D1420', borderColor: '#1F2D45', borderRadius: '2px' }}
+              title="Reset replay simulation pointer"
             >
-              <RotateCcw className="w-3 h-3 text-slate-400" />
-              <span>RESET</span>
+              <RotateCcw className="w-3 h-3" />
+              RESET
             </button>
 
-            {/* Speed Multiplier Buttons */}
-            <div className="flex items-center gap-0.5 ml-1">
-              <span className="text-[10px] text-slate-400 mr-1 flex items-center gap-0.5">
-                <FastForward className="w-2.5 h-2.5" /> SPEED:
-              </span>
+            {/* Speed selector */}
+            <div className="flex items-center gap-0.5 pl-1.5 border-l" style={{ borderColor: '#1F2D45' }}>
+              <FastForward className="w-3 h-3 text-slate-600 mr-0.5" />
               {speeds.map((s) => (
                 <button
                   key={s}
                   onClick={() => onSetSpeed && onSetSpeed(s)}
-                  className={`px-1.5 py-0.5 text-[10px] font-mono rounded font-semibold transition-colors ${
-                    speed === s
-                      ? 'bg-indigo-600 text-white font-bold'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
-                  }`}
+                  className="px-1.5 py-0.5 font-mono text-[10px] font-semibold transition-colors"
+                  style={{
+                    borderRadius: '2px',
+                    background: speed === s ? '#4F46E5' : '#0D1420',
+                    color: speed === s ? '#fff' : '#4A5B78',
+                    border: speed === s ? '1px solid #6366F1' : '1px solid #1F2D45',
+                  }}
+                  title={`Set replay speed to ${s}x`}
                 >
                   {s}x
                 </button>
@@ -161,20 +198,26 @@ export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-2">
+      {/* Right section: action buttons */}
+      <div className="flex items-center gap-1.5 py-1.5">
         <button
           onClick={onOpenDrawer}
-          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded font-medium border border-cyan-800/40 transition-colors flex items-center gap-1.5"
+          className="flex items-center gap-1.5 px-2.5 py-1 font-mono text-[11px] border text-slate-400 hover:text-slate-200 hover:border-border-accent transition-colors"
+          style={{ background: '#0D1420', borderColor: '#1F2D45', borderRadius: '2px' }}
+          title="View dataset information"
         >
-          <span>📊</span> DATASET INFO
+          <Database className="w-3 h-3" />
+          DATASET INFO
         </button>
 
         <button
           onClick={onOpenHistory}
-          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-medium border border-slate-700 transition-colors flex items-center gap-1.5"
+          className="flex items-center gap-1.5 px-2.5 py-1 font-mono text-[11px] border text-slate-400 hover:text-slate-200 hover:border-border-accent transition-colors"
+          style={{ background: '#0D1420', borderColor: '#1F2D45', borderRadius: '2px' }}
+          title="View run history"
         >
-          <span>📜</span> RUN HISTORY
+          <History className="w-3 h-3" />
+          RUN HISTORY
         </button>
       </div>
     </div>

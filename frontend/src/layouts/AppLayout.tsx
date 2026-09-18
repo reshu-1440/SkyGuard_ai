@@ -21,11 +21,11 @@ export const AppLayout: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-canvas text-slate-100 overflow-hidden">
-      {/* 40px Top Operations Bar */}
+    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#080C12', color: '#E8EEF7' }}>
+      {/* h-12 TopBar — command rail */}
       <TopBar />
 
-      {/* Active Source & Run Context Banner */}
+      {/* Active Source Control Rail */}
       <ActiveSourceBanner
         context={context}
         onOpenSelector={() => setIsSelectorOpen(true)}
@@ -37,14 +37,16 @@ export const AppLayout: React.FC = () => {
         onSetSpeed={setSpeed}
       />
 
-
-      {/* Optional Degraded Mode Alert Banner */}
+      {/* Degraded Mode Alert Banner — only rendered when WebSocket is degraded */}
       {isDegraded && <DegradedModeBanner />}
 
-      {/* Main App Workspace: Sidebar + Scrollable View Canvas */}
+      {/* Main workspace: sidebar + scrollable page canvas */}
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-4 bg-canvas">
+        <main
+          className="flex-1 overflow-y-auto p-5"
+          style={{ background: '#080C12' }}
+        >
           <Outlet />
         </main>
       </div>

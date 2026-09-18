@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wifi, WifiOff, Pause } from 'lucide-react';
+import { WifiOff, Pause, Wifi } from 'lucide-react';
 import { ConnectionStatus } from '../types/events';
 import { RunContext } from '../types/runtime';
 
@@ -12,6 +12,26 @@ interface DataFreshnessIndicatorProps {
   transportMode?: 'WEBSOCKET' | 'POLLING';
   context?: RunContext | null;
 }
+
+const formatAge = (secs: number) => {
+  if (secs < 60) return `${Math.max(0, secs).toFixed(0)}s`;
+  const mins = Math.floor(secs / 60);
+  const rem = Math.floor(secs % 60);
+  return `${mins}m ${rem}s`;
+};
+
+const BASE: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '4px 10px',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: '11px',
+  fontWeight: 500,
+  borderRadius: '2px',
+  border: '1px solid',
+  whiteSpace: 'nowrap',
+};
 
 export const DataFreshnessIndicator: React.FC<DataFreshnessIndicatorProps> = ({
   isConnected,
@@ -30,125 +50,127 @@ export const DataFreshnessIndicator: React.FC<DataFreshnessIndicatorProps> = ({
     ? new Date(context.current_synthetic_time).toISOString().substring(11, 16) + ' UTC'
     : null;
 
-  // Real observation timestamp from provider
   const obsTimestampStr = lastObservationTimestamp
     ? lastObservationTimestamp.toISOString().substring(11, 19) + ' UTC'
-    : (lastHeartbeat ? lastHeartbeat.toISOString().substring(11, 19) + ' UTC' : '--:--:--');
+    : lastHeartbeat
+      ? lastHeartbeat.toISOString().substring(11, 19) + ' UTC'
+      : '--:--:--';
 
   const receiptTimestampStr = lastHeartbeat
     ? lastHeartbeat.toISOString().substring(11, 19) + ' UTC'
     : '--:--:--';
 
-  // Format observation age
-  const formatAge = (secs: number) => {
-    if (secs < 60) return `${Math.max(0, secs).toFixed(0)}s`;
-    const mins = Math.floor(secs / 60);
-    const rem = Math.floor(secs % 60);
-    return `${mins}m ${rem}s`;
-  };
-
-  // Case 1: Historical Analysis
+  // ── Case 1: Historical Analysis (not streaming) ──────────────────────────────
   if (mode === 'HISTORICAL_ANALYSIS') {
     return (
-      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-slate-700 bg-slate-900 text-slate-300">
-        <span className="h-2 w-2 rounded-full bg-slate-400" />
-        <span className="font-semibold text-slate-200">HISTORICAL</span>
-        <span className="text-slate-400">Not streaming</span>
+      <div style={{ ...BASE, background: '#0D1420', borderColor: '#1F2D45', color: '#4A5B78' }}>
+        <span className="w-2 h-2 rounded-full" style={{ background: '#1F2D45' }} />
+        <span style={{ color: '#7B90B2' }}>HISTORICAL</span>
+        <span>Not streaming</span>
       </div>
     );
   }
 
-  // Case 2: Disconnected
+  // ── Case 2: Disconnected — pulsing dot ONLY because this is an error state ───
   if (connectionStatus === 'DISCONNECTED' || connectionStatus === 'ERROR' || !isConnected) {
     return (
-      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-red-800/80 bg-red-950/60 text-red-300">
-        <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
-        <span className="font-semibold text-red-400">DISCONNECTED</span>
+      <div style={{ ...BASE, background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.4)', color: '#FCA5A5' }}>
+        {/* Pulsing dot communicates active error / reconnecting state */}
+        <span className="w-2 h-2 rounded-full signal-reconnecting" style={{ background: '#EF4444' }} />
+        <span style={{ fontWeight: 700, color: '#F87171' }}>DISCONNECTED</span>
         <WifiOff className="w-3.5 h-3.5 text-red-400" />
       </div>
     );
   }
 
-  // Case 3: Replay Mode (Synthetic or Historical Replay)
+  // ── Case 3: Replay Mode ───────────────────────────────────────────────────────
   if (mode === 'SYNTHETIC_REPLAY' || mode === 'HISTORICAL_REPLAY') {
     if (status === 'RUNNING') {
       return (
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-indigo-700/70 bg-indigo-950/50 text-indigo-200">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-indigo-400" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400" />
-          </span>
-          <span className="font-bold text-indigo-300">REPLAYING</span>
+        <div style={{ ...BASE, background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.35)', color: '#C4B5FD' }}>
+          {/* Streaming dot — animate only when actively streaming */}
+          <span className="w-2 h-2 rounded-full signal-streaming" style={{ background: '#818CF8' }} />
+          <span style={{ fontWeight: 700, color: '#A78BFA' }}>REPLAYING</span>
           {syntheticTime && (
-            <span className="text-indigo-200 hidden sm:inline">
-              Sim: <span className="text-indigo-100 font-semibold">{syntheticTime}</span>
+            <span className="hidden sm:inline" style={{ color: '#8B5CF6' }}>
+              Sim: <span style={{ color: '#E8EEF7', fontWeight: 600 }}>{syntheticTime}</span>
             </span>
           )}
-          <span className="text-slate-400 text-[10px] hidden md:inline">
+          <span className="hidden md:inline" style={{ color: '#4A5B78' }}>
             Real: {receiptTimestampStr}
           </span>
-          <span className="px-1 py-0.2 rounded bg-indigo-900/80 text-indigo-300 font-semibold text-[10px] border border-indigo-600/40">
+          <span
+            style={{
+              padding: '1px 6px',
+              background: 'rgba(99,102,241,0.15)',
+              border: '1px solid rgba(99,102,241,0.3)',
+              color: '#A78BFA',
+              fontWeight: 700,
+              borderRadius: '2px',
+            }}
+          >
             {speed}x
           </span>
         </div>
       );
-    } else if (status === 'PAUSED') {
+    }
+
+    if (status === 'PAUSED') {
       return (
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-amber-700/70 bg-amber-950/50 text-amber-300">
-          <span className="h-2 w-2 rounded-full bg-amber-400" />
-          <span className="font-semibold text-amber-300 flex items-center gap-1">
-            <Pause className="w-3 h-3" /> PAUSED
-          </span>
-          <span className="text-slate-400 text-[10px] hidden sm:inline">
+        <div style={{ ...BASE, background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.35)', color: '#FCD34D' }}>
+          {/* Static dot — paused state is stable, no animation */}
+          <span className="w-2 h-2 rounded-full" style={{ background: '#F59E0B' }} />
+          <Pause className="w-3 h-3 text-amber-400" />
+          <span style={{ fontWeight: 700, color: '#FBBF24' }}>PAUSED</span>
+          <span className="hidden sm:inline" style={{ color: '#78716C' }}>
             {context?.current_observation_index ?? 0} / {context?.observation_count ?? 0}
           </span>
         </div>
       );
-    } else {
-      return (
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-slate-700 bg-slate-900/80 text-slate-300">
-          <span className="h-2 w-2 rounded-full bg-slate-400" />
-          <span className="font-semibold text-slate-300">READY</span>
-          <span className="text-slate-400 text-[10px] hidden sm:inline">
-            Speed: {speed}x
-          </span>
-        </div>
-      );
     }
-  }
 
-  // Case 4: Live Open-Meteo Provider
-  const isStale = secondsSinceLastUpdate > 900; // 15 mins for standard provider schedule
-  if (isStale) {
+    // IDLE / READY
     return (
-      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-yellow-700/70 bg-yellow-950/50 text-yellow-300">
-        <span className="h-2 w-2 rounded-full bg-yellow-400" />
-        <span className="font-bold text-yellow-300">STALE</span>
-        <span className="text-yellow-200">Age: {formatAge(secondsSinceLastUpdate)}</span>
+      <div style={{ ...BASE, background: '#0D1420', borderColor: '#1F2D45', color: '#4A5B78' }}>
+        <span className="w-2 h-2 rounded-full" style={{ background: '#334155' }} />
+        <span style={{ color: '#94A3B8', fontWeight: 600 }}>READY</span>
+        <span>Speed: {speed}x</span>
       </div>
     );
   }
 
+  // ── Case 4: Live provider ─────────────────────────────────────────────────────
+  const isStale = secondsSinceLastUpdate > 900; // 15 mins stale threshold
+
+  if (isStale) {
+    return (
+      <div style={{ ...BASE, background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.35)', color: '#FCD34D' }}>
+        {/* Static dot — stale is a degraded but stable state */}
+        <span className="w-2 h-2 rounded-full" style={{ background: '#F59E0B' }} />
+        <span style={{ fontWeight: 700, color: '#FBBF24' }}>STALE</span>
+        <span>Age: {formatAge(secondsSinceLastUpdate)}</span>
+      </div>
+    );
+  }
+
+  // Live & fresh
   return (
-    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded text-[11px] font-mono border border-emerald-800/80 bg-emerald-950/40 text-emerald-300">
-      <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-emerald-400" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+    <div style={{ ...BASE, background: 'rgba(0,201,167,0.07)', borderColor: 'rgba(0,201,167,0.3)', color: '#6EE7B7' }}>
+      {/* Steady dot — live connection is stable, not an error or change */}
+      <span className="w-2 h-2 rounded-full" style={{ background: '#00C9A7' }} />
+      <span style={{ fontWeight: 700, color: '#34D399' }}>LIVE</span>
+      <span className="hidden sm:inline" style={{ color: '#4A5B78' }}
+        title={`Provider Observation: ${obsTimestampStr} | Received: ${receiptTimestampStr}`}
+      >
+        Obs: <span style={{ color: '#E8EEF7', fontWeight: 600 }}>{obsTimestampStr}</span>
       </span>
-      <span className="font-bold tracking-wide">LIVE</span>
-      <span className="text-slate-300 text-[10px] hidden sm:inline" title={`Provider Observation: ${obsTimestampStr} | Received: ${receiptTimestampStr}`}>
-        Obs: <span className="text-slate-100 font-semibold">{obsTimestampStr}</span>
+      <span style={{ color: '#10B981', fontWeight: 600 }}>
+        {formatAge(secondsSinceLastUpdate)}
       </span>
-      <span className="text-emerald-300 text-[10px] font-semibold">
-        Age: {formatAge(secondsSinceLastUpdate)}
-      </span>
-      {transportMode === 'WEBSOCKET' ? (
-        <Wifi className="w-3.5 h-3.5 opacity-80" />
-      ) : (
-        <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-900 border border-emerald-700">
-          POLL
-        </span>
-      )}
+      {transportMode === 'WEBSOCKET'
+        ? <Wifi className="w-3.5 h-3.5 opacity-60" />
+        : <span style={{ fontSize: '9px', padding: '1px 4px', background: 'rgba(0,201,167,0.1)', border: '1px solid rgba(0,201,167,0.25)', borderRadius: '2px' }}>POLL</span>
+      }
     </div>
   );
 };

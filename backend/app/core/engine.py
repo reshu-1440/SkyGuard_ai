@@ -443,6 +443,11 @@ class RealTimeProcessingEngine:
             )
 
             prov_data = {
+                "run_id": observation.run_id,
+                "source_type": observation.source_type or str(observation.source.value if hasattr(observation.source, "value") else observation.source),
+                "source_name": observation.source_name,
+                "dataset_id": observation.dataset_id,
+                "dataset_version": observation.dataset_version,
                 "model_id": self.ml_model.model_id if self.ml_model else "none",
                 "model_version": getattr(self.ml_model, "version", "v0.1.0_baseline") if self.ml_model else "none",
                 "feature_version": "v1.0.0",
@@ -451,8 +456,6 @@ class RealTimeProcessingEngine:
             }
             self.repository.save_anomaly_event(event_rec, explanation=explanation, provenance=prov_data)
 
-
-
         t_persist_end = time.perf_counter_ns()
         total_pipeline_ms = (time.perf_counter_ns() - t_start) / 1e6
         self.repository.record_latency(total_pipeline_ms)
@@ -460,6 +463,11 @@ class RealTimeProcessingEngine:
         # 10. Broadcast Real-Time WebSocket Events
         if self.ws_manager is not None:
             # 10a. Observation Updated Event
+            rec_ts = (
+                observation.ingestion_timestamp.astimezone(timezone.utc).isoformat()
+                if observation.ingestion_timestamp
+                else None
+            )
             obs_payload = ObservationUpdatedPayload(
                 station_id=observation.station_id,
                 station_name=observation.station_name,
@@ -470,12 +478,19 @@ class RealTimeProcessingEngine:
                 dew_point_c=observation.dew_point_c,
                 data_quality_status=str(observation.data_quality_status.value if hasattr(observation.data_quality_status, "value") else observation.data_quality_status),
                 freshness_seconds=0,
+                received_timestamp=rec_ts,
+                run_id=observation.run_id,
+                source_type=observation.source_type or str(observation.source.value if hasattr(observation.source, "value") else observation.source),
+                source_name=observation.source_name,
             )
             self.ws_manager.broadcast_sync(WebSocketEnvelope.create(
                 event_id=f"OBS-{observation.station_id[-6:]}-{self.event_counter:04d}",
                 event_type=EventType.OBSERVATION_UPDATED,
                 station_id=observation.station_id,
                 timestamp=observation.timestamp,
+                run_id=observation.run_id,
+                source_type=obs_payload.source_type,
+                source_name=obs_payload.source_name,
                 payload=obs_payload,
             ))
 

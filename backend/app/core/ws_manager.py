@@ -90,6 +90,15 @@ class WebSocketConnectionManager:
         if len(self._latencies_ms) > 100:
             self._latencies_ms.pop(0)
 
+        ev_type = envelope.event_type.value if hasattr(envelope.event_type, "value") else str(envelope.event_type)
+        logger.info(
+            "[STREAM] Broadcasted %s for %s to %d active client(s) (%.2fms)",
+            ev_type,
+            envelope.station_id or "all",
+            delivered_count,
+            elapsed_ms,
+        )
+
         return delivered_count
 
     def broadcast_sync(self, envelope: WebSocketEnvelope) -> None:

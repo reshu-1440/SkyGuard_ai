@@ -39,13 +39,12 @@ async def lifespan(app: FastAPI):
         logger.info("Auto-migration disabled (production mode: explicit alembic migration expected)")
 
     # Start live polling task if enabled in configuration
-    poller_task = None
     if settings.live_source.enabled:
         from backend.app.api.v1.deps import get_live_poller
         poller = get_live_poller()
-        if not poller.is_polling:
+        if not poller.is_running:
             logger.info("Starting background live source poller for provider '%s'...", settings.live_source.provider)
-            poller_task = await poller.start_polling()
+            await poller.start()
 
     yield
 
@@ -55,9 +54,9 @@ async def lifespan(app: FastAPI):
         try:
             from backend.app.api.v1.deps import get_live_poller
             poller = get_live_poller()
-            if poller.is_polling:
+            if poller.is_running:
                 logger.info("Stopping background live poller...")
-                await poller.stop_polling()
+                await poller.stop()
         except Exception as stop_err:
             logger.warning("Error stopping live poller on shutdown: %s", str(stop_err))
 

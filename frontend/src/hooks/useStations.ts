@@ -39,6 +39,7 @@ export function useStationHistory(
     endTime?: string;
     limit?: number;
     offset?: number;
+    order?: 'asc' | 'desc';
   }
 ) {
   return useQuery({

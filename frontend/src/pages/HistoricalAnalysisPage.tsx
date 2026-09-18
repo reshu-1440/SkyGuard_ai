@@ -126,7 +126,7 @@ export const HistoricalAnalysisPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header & Filter Controls */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-3 border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3" style={{ borderRadius: '2px' }}>
         <div className="flex items-center gap-2">
           <History className="w-5 h-5 text-ops-weather" />
           <div>
@@ -145,7 +145,8 @@ export const HistoricalAnalysisPage: React.FC = () => {
             <select
               value={selectedStationId}
               onChange={(e) => setSelectedStationId(e.target.value)}
-              className="bg-surface-2 border border-border text-slate-200 rounded px-2.5 py-1 text-data font-mono focus:outline-none"
+              className="bg-surface-2 border border-border text-slate-200 px-2.5 py-1 text-data font-mono focus:outline-none"
+              style={{ borderRadius: '2px' }}
             >
               {stations.map((s) => (
                 <option key={s.station_id} value={s.station_id}>
@@ -163,7 +164,8 @@ export const HistoricalAnalysisPage: React.FC = () => {
                 setTimeRange(e.target.value);
                 setLimit(e.target.value === '24h' ? 200 : e.target.value === '7d' ? 500 : 1000);
               }}
-              className="bg-surface-2 border border-border text-slate-200 rounded px-2.5 py-1 text-data font-mono focus:outline-none"
+              className="bg-surface-2 border border-border text-slate-200 px-2.5 py-1 text-data font-mono focus:outline-none"
+              style={{ borderRadius: '2px' }}
             >
               <option value="24h">Window: Last 24 Hours</option>
               <option value="7d">Window: Last 7 Days</option>

@@ -108,11 +108,12 @@ export const StationDetailsPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header bar */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-3 border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3" style={{ borderRadius: '2px' }}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/network')}
-            className="p-1.5 rounded hover:bg-surface-2 text-slate-400 hover:text-slate-100 transition-colors"
+            className="p-1.5 hover:bg-surface-2 text-slate-400 hover:text-slate-100 transition-colors"
+            style={{ borderRadius: '2px' }}
             title="Back to Network Overview"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -145,7 +146,8 @@ export const StationDetailsPage: React.FC = () => {
           <select
             value={station.station_id}
             onChange={(e) => navigate(`/stations/${e.target.value}`)}
-            className="bg-surface-2 border border-border text-slate-200 rounded px-2.5 py-1 text-data font-mono focus:outline-none"
+            className="bg-surface-2 border border-border text-slate-200 px-2.5 py-1 text-data font-mono focus:outline-none"
+            style={{ borderRadius: '2px' }}
           >
             {allStations.map((s) => (
               <option key={s.station_id} value={s.station_id}>
@@ -201,7 +203,7 @@ export const StationDetailsPage: React.FC = () => {
           {/* Health Summary */}
           <HealthScore
             score={healthData?.overall_health_score ?? latest?.latest_health_score ?? null}
-            band={healthData?.status_band ?? latest?.latest_health_band ?? 'HEALTHY'}
+            band={healthData?.status_band ?? latest?.latest_health_band ?? ((healthData?.overall_health_score === null || healthData?.overall_health_score === undefined) && (latest?.latest_health_score ?? null) === null ? 'INSUFFICIENT_HISTORY' : 'HEALTHY')}
             trend={healthData?.trend ?? 'STABLE'}
             showDisclaimer={true}
           />
@@ -215,7 +217,7 @@ export const StationDetailsPage: React.FC = () => {
           )}
 
           {/* Spatial Neighbors */}
-          <div className="p-4 rounded border border-border bg-surface-1">
+          <div className="p-4 border border-border bg-surface-1" style={{ borderRadius: '2px' }}>
             <h3 className="text-h2 font-semibold text-slate-100 flex items-center gap-1.5 mb-2.5">
               <Layers className="w-4 h-4 text-ops-weather" />
               Nearest Topographic Neighbors
@@ -225,7 +227,8 @@ export const StationDetailsPage: React.FC = () => {
                 <div
                   key={nb.station_id}
                   onClick={() => navigate(`/stations/${nb.station_id}`)}
-                  className="flex items-center justify-between p-2 rounded bg-surface-2 hover:bg-surface-hover cursor-pointer border border-border-subtle text-[11px] font-mono transition-colors"
+                  className="flex items-center justify-between p-2 bg-surface-2 hover:bg-surface-hover cursor-pointer border border-border-subtle text-[11px] font-mono transition-colors"
+                  style={{ borderRadius: '2px' }}
                 >
                   <div>
                     <strong className="text-slate-100">{nb.station_id}</strong>

@@ -36,6 +36,10 @@ export interface ObservationUpdatedPayload {
   dew_point_c?: number | null;
   data_quality_status: string;
   freshness_seconds: number;
+  received_timestamp?: string | null;
+  run_id?: string | null;
+  source_type?: string | null;
+  source_name?: string | null;
 }
 
 export interface AnomalyCreatedPayload {
@@ -63,11 +67,11 @@ export interface AnomalyUpdatedPayload {
 export interface HealthUpdatedPayload {
   station_id: string;
   timestamp: string;
-  health_index: number;
+  health_index?: number | null;
   health_status: string;
   health_trend: string;
   maintenance_recommendation: string;
-  parameter_health: Record<string, number>;
+  parameter_health: Record<string, any>;
   component_scores: Record<string, number>;
 }
 
@@ -77,9 +81,9 @@ export interface CorrectionCreatedPayload {
   timestamp: string;
   target_variable: string;
   observed_value: number;
-  recommended_value: number;
-  confidence_lower: number;
-  confidence_upper: number;
+  recommended_value?: number | null;
+  confidence_lower?: number | null;
+  confidence_upper?: number | null;
   status: string;
   method: string;
 }
@@ -107,6 +111,9 @@ export interface WebSocketEnvelope<T = any> {
   station_id?: string | null;
   payload: T;
   schema_version: string;
+  run_id?: string | null;
+  source_type?: string | null;
+  source_name?: string | null;
 }
 
 export type ConnectionStatus =

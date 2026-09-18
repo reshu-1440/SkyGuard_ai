@@ -127,67 +127,72 @@ export const CorrectionReviewPage: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* 1. Immutability Warning Banner (Non-dismissable) */}
-      <div className="p-3.5 bg-amber-950/40 border border-amber-800/80 rounded flex items-start gap-3">
+      <div className="p-3.5 bg-amber-950/30 border border-amber-800/70 flex items-start gap-3" style={{ borderRadius: '2px', borderLeft: '3px solid #F59E0B' }}>
         <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
         <div className="text-data text-amber-200">
           <strong className="text-slate-100 uppercase tracking-wider font-mono text-[11px] block">
             Immutable Raw Telemetry Guarantee
           </strong>
-          Advisory correction recommendations are stored strictly in separate derivation partitions. Approving or reviewing a recommendation does NOT overwrite or mutate the original immutable sensor observations.
+          Advisory correction recommendations are stored strictly in separate derivation partitions. Approving or reviewing a recommendation does NOT overwrite or mutate original immutable sensor observations.
         </div>
       </div>
 
       {/* Filter Tabs Bar */}
-      <div className="p-2.5 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px]">
+      <div className="p-2.5 border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px]" style={{ borderRadius: '2px' }}>
         <div className="flex items-center gap-1.5 flex-wrap">
           <Filter className="w-3.5 h-3.5 text-slate-400 mr-1" />
           <button
             onClick={() => setActiveFilter('ACTIONABLE')}
-            className={`px-2.5 py-1 rounded border transition-colors ${
+            className={`px-2.5 py-1 border transition-colors ${
               activeFilter === 'ACTIONABLE'
                 ? 'bg-ops-weather text-slate-900 border-ops-weather font-bold'
                 : 'bg-surface-2 text-slate-300 border-border hover:bg-surface-hover'
             }`}
+            style={{ borderRadius: '2px' }}
           >
             Actionable Queue ({allCorrections.filter((c) => c.status !== 'NO_CORRECTION_RECOMMENDED').length})
           </button>
           <button
             onClick={() => setActiveFilter('CORRECTION_CANDIDATE')}
-            className={`px-2.5 py-1 rounded border transition-colors ${
+            className={`px-2.5 py-1 border transition-colors ${
               activeFilter === 'CORRECTION_CANDIDATE'
                 ? 'bg-sky-900 text-sky-200 border-sky-700 font-bold'
                 : 'bg-surface-2 text-slate-300 border-border hover:bg-surface-hover'
             }`}
+            style={{ borderRadius: '2px' }}
           >
             Candidates ({allCorrections.filter((c) => c.status === 'CORRECTION_CANDIDATE').length})
           </button>
           <button
             onClick={() => setActiveFilter('REVIEW_REQUIRED')}
-            className={`px-2.5 py-1 rounded border transition-colors ${
+            className={`px-2.5 py-1 border transition-colors ${
               activeFilter === 'REVIEW_REQUIRED'
                 ? 'bg-amber-900 text-amber-200 border-amber-700 font-bold'
                 : 'bg-surface-2 text-slate-300 border-border hover:bg-surface-hover'
             }`}
+            style={{ borderRadius: '2px' }}
           >
             Needs Review ({allCorrections.filter((c) => c.status === 'REVIEW_RECOMMENDED').length})
           </button>
           <button
             onClick={() => setActiveFilter('NO_ACTION')}
-            className={`px-2.5 py-1 rounded border transition-colors ${
+            className={`px-2.5 py-1 border transition-colors ${
               activeFilter === 'NO_ACTION'
                 ? 'bg-slate-700 text-slate-100 border-slate-600 font-bold'
                 : 'bg-surface-2 text-slate-300 border-border hover:bg-surface-hover'
             }`}
+            style={{ borderRadius: '2px' }}
           >
             No Action ({allCorrections.filter((c) => c.status === 'NO_CORRECTION_RECOMMENDED').length})
           </button>
           <button
             onClick={() => setActiveFilter('ALL')}
-            className={`px-2.5 py-1 rounded border transition-colors ${
+            className={`px-2.5 py-1 border transition-colors ${
               activeFilter === 'ALL'
                 ? 'bg-slate-700 text-slate-100 border-slate-600 font-bold'
                 : 'bg-surface-2 text-slate-300 border-border hover:bg-surface-hover'
             }`}
+            style={{ borderRadius: '2px' }}
           >
             All ({allCorrections.length})
           </button>
@@ -226,7 +231,7 @@ export const CorrectionReviewPage: React.FC = () => {
         {/* Right Column (5 cols): Recommendation Detail Drawer */}
         <div className="lg:col-span-5 space-y-4">
           {selectedCorrection ? (
-            <div className="p-4 rounded border border-border bg-surface-1 space-y-4">
+            <div className="p-4 border border-border bg-surface-1 space-y-4" style={{ borderRadius: '2px' }}>
               <div className="flex items-center justify-between border-b border-border-subtle pb-2">
                 <h3 className="text-h2 font-semibold text-slate-100 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-ops-weather" />
@@ -239,7 +244,7 @@ export const CorrectionReviewPage: React.FC = () => {
 
               {/* Observed vs Recommended values */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded bg-surface-2 border border-border-subtle">
+                <div className="p-3 bg-surface-2 border border-border-subtle" style={{ borderRadius: '2px' }}>
                   <span className="text-[10px] font-mono text-slate-400 uppercase block">Immutable Observed</span>
                   <span className="text-stat font-mono font-bold text-red-400">
                     {formatTelemetryValue(selectedCorrection.target_variable, selectedCorrection.observed_value, true)}
@@ -249,7 +254,7 @@ export const CorrectionReviewPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="p-3 rounded bg-surface-2 border border-border-subtle">
+                <div className="p-3 bg-surface-2 border border-border-subtle" style={{ borderRadius: '2px' }}>
                   <span className="text-[10px] font-mono text-slate-400 uppercase block">Advisory Estimate</span>
                   <span className="text-stat font-mono font-bold text-emerald-400">
                     {selectedCorrection.recommended_value !== null && selectedCorrection.recommended_value !== undefined
@@ -264,9 +269,9 @@ export const CorrectionReviewPage: React.FC = () => {
 
               {/* Uncertainty Quantification */}
               {selectedCorrection.uncertainty && (
-                <div className="p-3 rounded bg-surface-2 border border-border-subtle space-y-1.5 font-mono text-[11px]">
+                <div className="p-3 bg-surface-2 border border-border-subtle space-y-1.5 font-mono text-[11px]" style={{ borderRadius: '2px' }}>
                   <div className="flex justify-between text-slate-300">
-                    <span>Plausible Range (95% CI):</span>
+                    <span>Model-Derived Uncertainty Interval:</span>
                     <span className="text-slate-100 font-semibold">
                       [{selectedCorrection.uncertainty.estimate_range[0].toFixed(2)}, {selectedCorrection.uncertainty.estimate_range[1].toFixed(2)}]
                     </span>
@@ -287,7 +292,7 @@ export const CorrectionReviewPage: React.FC = () => {
                 <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block">
                   Scientific Rationale
                 </span>
-                <p className="text-data text-slate-300 bg-surface-2 p-3 rounded border border-border-subtle leading-relaxed">
+                <p className="text-data text-slate-300 bg-surface-2 p-3 border border-border-subtle leading-relaxed" style={{ borderRadius: '2px' }}>
                   {selectedCorrection.operator_summary || 'Empirical spatial IDW consensus calculation based on adjacent AWS nodes.'}
                 </p>
               </div>
@@ -298,7 +303,7 @@ export const CorrectionReviewPage: React.FC = () => {
                   <span className="text-[11px] font-mono text-slate-400 uppercase tracking-wider block">
                     Supporting Evidence
                   </span>
-                  <ul className="space-y-1 text-data text-slate-300 list-disc list-inside bg-surface-2 p-3 rounded border border-border-subtle">
+                  <ul className="space-y-1 text-data text-slate-300 list-disc list-inside bg-surface-2 p-3 border border-border-subtle" style={{ borderRadius: '2px' }}>
                     {selectedCorrection.supporting_evidence.map((ev, i) => (
                       <li key={i}>{ev}</li>
                     ))}
@@ -307,7 +312,7 @@ export const CorrectionReviewPage: React.FC = () => {
               )}
 
               {/* Audit Metadata */}
-              <div className="p-3 rounded bg-surface-2/60 border border-border-subtle text-[10px] font-mono text-slate-400 space-y-1">
+              <div className="p-3 bg-surface-2/60 border border-border-subtle text-[10px] font-mono text-slate-400 space-y-1" style={{ borderRadius: '2px' }}>
                 <div>Engine: {selectedCorrection.audit_metadata?.imputation_engine_version ?? 'imputation_v1.0.0'}</div>
                 <div>Causal Mode: {selectedCorrection.audit_metadata?.is_causal_mode ? 'STRICT ZERO-LOOKAHEAD' : 'STANDARD'}</div>
                 <div>Generated: {formatIsoUtc(selectedCorrection.created_at)}</div>
@@ -317,14 +322,16 @@ export const CorrectionReviewPage: React.FC = () => {
               <div className="flex items-center gap-2 pt-2 border-t border-border-subtle">
                 <button
                   onClick={() => handleReviewAction('ACCEPTED')}
-                  className="flex-1 py-2 px-3 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-data font-mono font-medium flex items-center justify-center gap-1.5 transition-colors"
+                  className="flex-1 py-2 px-3 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 text-data font-mono font-medium flex items-center justify-center gap-1.5 transition-colors"
+                  style={{ borderRadius: '2px' }}
                 >
                   <Check className="w-4 h-4" />
                   Accept Estimate
                 </button>
                 <button
                   onClick={() => handleReviewAction('HELD_FOR_SENIOR_AUDIT')}
-                  className="flex-1 py-2 px-3 rounded bg-surface-2 hover:bg-surface-hover text-slate-300 border border-border text-data font-mono font-medium flex items-center justify-center gap-1.5 transition-colors"
+                  className="flex-1 py-2 px-3 bg-surface-2 hover:bg-surface-hover text-slate-300 border border-border text-data font-mono font-medium flex items-center justify-center gap-1.5 transition-colors"
+                  style={{ borderRadius: '2px' }}
                 >
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
                   Hold for Audit
@@ -332,13 +339,13 @@ export const CorrectionReviewPage: React.FC = () => {
               </div>
 
               {actionFeedback && (
-                <div className="p-2 rounded bg-surface-2 border border-border-subtle text-[11px] font-mono text-emerald-400">
+                <div className="p-2 bg-surface-2 border border-border-subtle text-[11px] font-mono text-emerald-400" style={{ borderRadius: '2px' }}>
                   {actionFeedback}
                 </div>
               )}
             </div>
           ) : (
-            <div className="p-8 rounded border border-border bg-surface-1 text-center text-slate-400 text-data">
+            <div className="p-8 border border-border bg-surface-1 text-center text-slate-400 text-data" style={{ borderRadius: '2px' }}>
               Select an item from the queue to inspect audit metadata and supporting evidence.
             </div>
           )}

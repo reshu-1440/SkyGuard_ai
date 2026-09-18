@@ -41,13 +41,13 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="p-4 rounded border bg-surface-1 border-border">
+      <div className="p-4 border bg-surface-1 border-border" style={{ borderRadius: '2px' }}>
         <h4 className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-3">
           5-Component Reliability Breakdown
         </h4>
 
         {isInsufficientHistory ? (
-          <div className="p-3 bg-surface-2 rounded border border-border-subtle text-[11px] font-mono text-slate-400 leading-relaxed">
+          <div className="p-3 bg-surface-2 border border-border-subtle text-[11px] font-mono text-slate-400 leading-relaxed" style={{ borderRadius: '2px' }}>
             <span className="text-slate-300 font-semibold block mb-1 uppercase text-[10px]">
               Calibration in Progress
             </span>
@@ -64,13 +64,13 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
                     <span className="text-slate-300">{item.label}</span>
                     {isAvailable ? (
                       <span className="text-slate-200 font-semibold">
-                        {formatHealthScore(score)}/100
+                        {formatHealthScore(score)} / 100
                       </span>
                     ) : (
                       <span className="text-slate-500 italic">Unavailable</span>
                     )}
                   </div>
-                  <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-surface-2 overflow-hidden" style={{ borderRadius: '1px' }}>
                     <div
                       className={`h-full ${isAvailable ? getScoreColor(score!) : 'bg-slate-700'} transition-all duration-300`}
                       style={{ width: isAvailable ? `${Math.min(Math.max(score!, 0), 100)}%` : '0%' }}
@@ -87,9 +87,8 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
         )}
       </div>
 
-
       {/* Parameter-level health: rendered from Dict<string, ParameterHealth> */}
-      <div className="p-4 rounded border bg-surface-1 border-border">
+      <div className="p-4 border bg-surface-1 border-border" style={{ borderRadius: '2px' }}>
         <h4 className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-3">
           Parameter-Level Sensor Status
         </h4>
@@ -97,7 +96,7 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
         {hasAnyParameterHealth ? (
           <div className="grid grid-cols-3 gap-3">
             {/* Temperature */}
-            <div className="p-2.5 rounded bg-surface-2 border border-border-subtle text-center">
+            <div className="p-2.5 bg-surface-2 border border-border-subtle text-center" style={{ borderRadius: '2px' }}>
               <span className="text-[10px] font-mono text-slate-400 block">TEMPERATURE</span>
               {tempHealth?.health_score !== null && tempHealth?.health_score !== undefined ? (
                 <>
@@ -116,7 +115,7 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
             </div>
 
             {/* Humidity */}
-            <div className="p-2.5 rounded bg-surface-2 border border-border-subtle text-center">
+            <div className="p-2.5 bg-surface-2 border border-border-subtle text-center" style={{ borderRadius: '2px' }}>
               <span className="text-[10px] font-mono text-slate-400 block">HUMIDITY</span>
               {humidHealth?.health_score !== null && humidHealth?.health_score !== undefined ? (
                 <>
@@ -135,7 +134,7 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
             </div>
 
             {/* Pressure */}
-            <div className="p-2.5 rounded bg-surface-2 border border-border-subtle text-center">
+            <div className="p-2.5 bg-surface-2 border border-border-subtle text-center" style={{ borderRadius: '2px' }}>
               <span className="text-[10px] font-mono text-slate-400 block">PRESSURE</span>
               {pressHealth?.health_score !== null && pressHealth?.health_score !== undefined ? (
                 <>
