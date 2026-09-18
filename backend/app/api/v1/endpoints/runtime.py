@@ -75,6 +75,7 @@ async def select_data_source(
     ctx_mgr: RunContextManager = Depends(get_run_context_manager),
     replay: StreamReplayEngine = Depends(get_replay_engine),
     poller: LiveSourcePoller = Depends(get_live_poller),
+    engine: RealTimeProcessingEngine = Depends(get_engine),
 ) -> RunContext:
     """Switch active data source and run mode.
     
@@ -102,6 +103,10 @@ async def select_data_source(
         if poller.is_running:
             await poller.stop()
 
+        # Reset transient in-memory station state buffers to prevent cross-mode observation bleed
+        if hasattr(engine, "state_manager") and engine.state_manager is not None:
+            engine.state_manager.stations.clear()
+
         new_ctx = ctx_mgr.select_source(
             source_type=payload.source_type,
             mode=payload.mode,
@@ -113,9 +118,19 @@ async def select_data_source(
         if payload.source_type == DataSourceType.SYNTHETIC_VALIDATION:
             replay.load_synthetic_benchmark()
             ctx_mgr.update_context(observation_count=len(replay.observations))
+        elif payload.source_type == DataSourceType.HISTORICAL_CSV:
+            replay.load_historical_dataset(payload.dataset_id)
+            station_ids = {o.station_id for o in replay.observations}
+            ctx_mgr.update_context(
+                observation_count=len(replay.observations),
+                station_count=len(station_ids) if station_ids else 8,
+            )
         elif payload.source_type == DataSourceType.OPEN_METEO:
-            # Live monitoring mode with Open-Meteo
-            pass
+            # When LIVE API is selected, live poller must become active immediately
+            if payload.mode == RunMode.LIVE_MONITORING:
+                if not poller.is_running:
+                    await poller.start()
+                new_ctx = ctx_mgr.update_context(status=RunStatus.RUNNING)
 
         return new_ctx
     except ValueError as err:

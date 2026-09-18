@@ -13,11 +13,16 @@ from ml.imputation.schema import (
 from ml.spatial.topology import SpatialNetworkTopology, StationNode
 
 
+from backend.app.db.session import DatabaseSessionManager
+
+
 @pytest.fixture
-def test_repo():
+def test_repo(tmp_path):
+    db_file = tmp_path / "test_corrections.db"
+    session_mgr = DatabaseSessionManager(f"sqlite:///{db_file}")
     topo = SpatialNetworkTopology()
     topo.add_station(StationNode(station_id="AWS_001", name="Station 1", latitude=28.6, longitude=77.2, elevation_m=200.0))
-    repo = DatabaseRepository(topology=topo)
+    repo = DatabaseRepository(topology=topo, session_manager=session_mgr)
     
     corr1 = CorrectionRecommendation(
         observation_id="OBS-AWS001-20260917-001",

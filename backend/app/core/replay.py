@@ -74,6 +74,49 @@ class StreamReplayEngine:
         except Exception as err:
             logger.warning("Could not load synthetic benchmark: %s", err)
 
+    def load_historical_dataset(self, dataset_id: Optional[str] = None) -> None:
+        """Load Historical CSV dataset for sequential playback."""
+        import tempfile
+        from backend.app.connectors.historical_csv import HistoricalCSVConnector
+        from backend.app.core.config import get_project_root
+
+        target_file: Optional[Path] = None
+        if dataset_id:
+            temp_path = Path(tempfile.gettempdir()) / "skyguard_csv_uploads" / dataset_id
+            if temp_path.is_file():
+                target_file = temp_path
+
+        if target_file is None:
+            # Fallback to local processed benchmark CSV
+            bench_path = get_project_root() / "data" / "processed" / "benchmark_multistation_2024.csv"
+            if bench_path.is_file():
+                target_file = bench_path
+            else:
+                norm_path = get_project_root() / "data" / "processed" / "42182099999_2024_normalized.csv"
+                if norm_path.is_file():
+                    target_file = norm_path
+
+        if target_file and target_file.is_file():
+            connector = HistoricalCSVConnector(file_path=target_file)
+            connector.connect()
+            loaded: List[WeatherObservation] = []
+            for obs in connector.fetch_observations():
+                # Ensure provenance is strictly HISTORICAL_CSV and not synthetic
+                obs_dict = obs.model_dump()
+                obs_dict["source"] = ObservationSource.HISTORICAL_CSV
+                obs_dict["is_synthetic"] = False
+                loaded.append(WeatherObservation(**obs_dict))
+            
+            if self.interleaved_chronological:
+                loaded.sort(key=lambda o: o.timestamp)
+            self.observations = loaded
+            self.current_index = 0
+            self.emitted_count = 0
+            self.current_scenario_id = "HISTORICAL_REPLAY"
+            logger.info("Loaded %d historical observations from %s", len(self.observations), target_file.name)
+        else:
+            logger.warning("No historical CSV dataset found to load.")
+
     def load_scenario(self, scenario_id: str) -> bool:
         """Load a specific demonstration scenario from synthetic benchmark scenarios or demo datasets."""
         self.current_scenario_id = scenario_id

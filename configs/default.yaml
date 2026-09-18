@@ -28,6 +28,7 @@ pipeline:
 storage:
   database_type: "sqlite"
   database_url: "sqlite:///./data/skyguard_dev.db"
+  auto_migrate: false
   raw_retention_days: -1                 # Permanent retention for raw observations
   quality_retention_days: -1
 
