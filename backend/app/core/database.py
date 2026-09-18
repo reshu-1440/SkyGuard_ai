@@ -555,6 +555,8 @@ class DatabaseRepository:
 
         if stn_keys:
             latest_obs = self.observations[stn_keys[-1]]
+            h_score = health.overall_health_score if (health and health.overall_health_score is not None) else None
+            h_band = health.status_band.value if (health and hasattr(health.status_band, "value")) else (str(health.status_band) if health else "HEALTHY")
             return LiveStationSnapshot(
                 station_id=station_id,
                 station_name=name,
@@ -566,8 +568,8 @@ class DatabaseRepository:
                 latest_humidity_pct=latest_obs.humidity,
                 latest_pressure_hpa=latest_obs.pressure,
                 latest_decision="NORMAL",
-                latest_health_score=health.overall_health_score if health else 100.0,
-                latest_health_band=health.status_band.value if health else "HEALTHY",
+                latest_health_score=h_score,
+                latest_health_band=h_band,
                 active_anomaly_count_24h=active_anom_count,
             )
 
@@ -582,6 +584,8 @@ class DatabaseRepository:
                 ).scalar_one_or_none()
 
                 if latest_m:
+                    h_score = health.overall_health_score if (health and health.overall_health_score is not None) else None
+                    h_band = health.status_band.value if (health and hasattr(health.status_band, "value")) else (str(health.status_band) if health else "HEALTHY")
                     return LiveStationSnapshot(
                         station_id=station_id,
                         station_name=name,
@@ -593,8 +597,8 @@ class DatabaseRepository:
                         latest_humidity_pct=latest_m.relative_humidity_pct,
                         latest_pressure_hpa=latest_m.sea_level_pressure_hpa,
                         latest_decision="NORMAL",
-                        latest_health_score=health.overall_health_score if health else 100.0,
-                        latest_health_band=health.status_band.value if health else "HEALTHY",
+                        latest_health_score=h_score,
+                        latest_health_band=h_band,
                         active_anomaly_count_24h=active_anom_count,
                     )
         except Exception as e:
@@ -615,12 +619,16 @@ class DatabaseRepository:
         end_time: Optional[datetime] = None,
         limit: int = 100,
         offset: int = 0,
+        source: Optional[str] = None,
+        is_synthetic: Optional[bool] = None,
+        order: str = "asc",
     ) -> Tuple[List[WeatherObservation], int]:
-        """Query chronological observation history with filters and pagination."""
+        """Query chronological observation history with filters, provenance isolation, and pagination."""
         start_dt = ensure_utc(start_time) if isinstance(start_time, datetime) else None
         end_dt = ensure_utc(end_time) if isinstance(end_time, datetime) else None
         lim = limit if isinstance(limit, int) else 100
         off = offset if isinstance(offset, int) else 0
+        order_str = str(order).lower() if isinstance(order, str) else "asc"
 
         # Try database query first for persistence integrity
         try:
@@ -630,11 +638,22 @@ class DatabaseRepository:
                     query = query.where(WeatherObservationModel.observation_timestamp >= start_dt)
                 if end_dt:
                     query = query.where(WeatherObservationModel.observation_timestamp <= end_dt)
+                if source:
+                    if source in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                        query = query.where(WeatherObservationModel.source.in_(["SYNTHETIC_VALIDATION", "SIMULATOR"]))
+                    else:
+                        query = query.where(WeatherObservationModel.source == source)
+                if is_synthetic is not None:
+                    query = query.where(WeatherObservationModel.is_synthetic == is_synthetic)
 
                 count_q = select(func.count()).select_from(query.subquery())
                 total_count = session.execute(count_q).scalar_one()
 
-                query = query.order_by(WeatherObservationModel.observation_timestamp.asc()).offset(off).limit(lim)
+                if order_str == "desc":
+                    query = query.order_by(WeatherObservationModel.observation_timestamp.desc()).offset(off).limit(lim)
+                else:
+                    query = query.order_by(WeatherObservationModel.observation_timestamp.asc()).offset(off).limit(lim)
+
                 rows = session.execute(query).scalars().all()
 
                 if total_count > 0:
@@ -676,9 +695,20 @@ class DatabaseRepository:
                 continue
             if end_dt and obs_time > end_dt:
                 continue
+            if source:
+                obs_src = str(obs.source.value if hasattr(obs.source, "value") else obs.source)
+                if source in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                    if obs_src not in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                        continue
+                elif obs_src != source:
+                    continue
+            if is_synthetic is not None and obs.is_synthetic != is_synthetic:
+                continue
             records_mem.append(obs)
 
         total_count = len(records_mem)
+        if order_str == "desc":
+            records_mem = list(reversed(records_mem))
         paginated = records_mem[off : off + lim]
         return paginated, total_count
 

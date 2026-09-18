@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStations, useStationHistory } from '../hooks/useStations';
+import { useRunContext } from '../hooks/useRunContext';
+import { useRealtimeStream } from '../hooks/useRealtimeStream';
 import { MetricTable, ColumnDef } from '../components/MetricTable';
 import { StationStatus } from '../components/StationStatus';
 import { WeatherTrendChart, TimeSeriesPoint } from '../components/WeatherTrendChart';
 import { StationItem } from '../types/api';
 import { formatTemperature, formatHumidity, formatPressure, formatHealthScore } from '../utils/formatters';
-import { Search, Filter, Radio, Clock } from 'lucide-react';
+import { Search, Filter, Radio, Clock, PlayCircle, FileSpreadsheet, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const LiveMonitoringPage: React.FC = () => {
   const navigate = useNavigate();
+  const { context } = useRunContext();
+  const streamState = useRealtimeStream();
   const { data: stations = [], isLoading } = useStations();
+
   const [search, setSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [healthFilter, setHealthFilter] = useState<string>('ALL');
@@ -28,8 +33,8 @@ export const LiveMonitoringPage: React.FC = () => {
     }
   }, [stations, selectedStationId]);
 
-  // Fetch telemetry for sparkline strip for selected station
-  const { data: historyData } = useStationHistory(selectedStationId, { limit: 36 });
+  // Fetch telemetry for sparkline strip for selected station (latest 36 observations)
+  const { data: historyData } = useStationHistory(selectedStationId, { limit: 36, order: 'desc' });
 
   const sparklineData: TimeSeriesPoint[] = useMemo(() => {
     if (!historyData?.items || historyData.items.length === 0) return [];
@@ -202,12 +207,29 @@ export const LiveMonitoringPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Stream / Polling Cadence Badge */}
+        {/* Dynamic Stream / Mode Cadence Badge */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-2 border border-border text-[11px] font-mono text-emerald-400">
-            <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
-            <span>LIVE STREAM · POLLING (15s)</span>
-          </div>
+          {context?.mode === 'SYNTHETIC_REPLAY' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-950/60 border border-indigo-700/60 text-[11px] font-mono text-indigo-300">
+              <PlayCircle className={`w-3.5 h-3.5 text-indigo-400 ${context?.status === 'RUNNING' ? 'animate-spin' : ''}`} />
+              <span>SYNTHETIC REPLAY · {context?.status === 'RUNNING' ? 'STREAMING' : context?.status || 'IDLE'} ({streamState.transportMode})</span>
+            </div>
+          ) : context?.mode === 'HISTORICAL_REPLAY' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-blue-950/60 border border-blue-700/60 text-[11px] font-mono text-blue-300">
+              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" />
+              <span>HISTORICAL REPLAY · {context?.status === 'RUNNING' ? 'STREAMING' : context?.status || 'IDLE'} ({streamState.transportMode})</span>
+            </div>
+          ) : context?.mode === 'HISTORICAL_ANALYSIS' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono text-slate-300">
+              <Database className="w-3.5 h-3.5 text-slate-400" />
+              <span>HISTORICAL ANALYSIS · STATIC</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-2 border border-border text-[11px] font-mono text-emerald-400">
+              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+              <span>LIVE STREAM · {streamState.transportMode}</span>
+            </div>
+          )}
           <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
             Showing <strong className="text-slate-200">{filtered.length}</strong> of {stations.length}
           </span>

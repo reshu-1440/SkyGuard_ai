@@ -7,11 +7,14 @@ interface HealthTrendProps {
   components?: HealthComponentScores;
   /** Dict keyed by parameter name: 'temperature_c', 'relative_humidity', 'sea_level_pressure_hpa' */
   parameterHealth?: Record<string, ParameterHealth>;
+  /** Explicit flag if lookback history is insufficient (< 12 observations) */
+  isInsufficientHistory?: boolean;
 }
 
 export const HealthTrend: React.FC<HealthTrendProps> = ({
   components,
   parameterHealth,
+  isInsufficientHistory = false,
 }) => {
   // Use actual backend field names from ComponentHealthScores
   const componentItems = [
@@ -43,7 +46,14 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
           5-Component Reliability Breakdown
         </h4>
 
-        {components ? (
+        {isInsufficientHistory ? (
+          <div className="p-3 bg-surface-2 rounded border border-border-subtle text-[11px] font-mono text-slate-400 leading-relaxed">
+            <span className="text-slate-300 font-semibold block mb-1 uppercase text-[10px]">
+              Calibration in Progress
+            </span>
+            Component scores require at least 12 observations in the evaluation window. Multi-domain scoring will activate as telemetry accumulates.
+          </div>
+        ) : components ? (
           <div className="space-y-2.5">
             {componentItems.map((item) => {
               const score = item.score ?? null;
@@ -76,6 +86,7 @@ export const HealthTrend: React.FC<HealthTrendProps> = ({
           </p>
         )}
       </div>
+
 
       {/* Parameter-level health: rendered from Dict<string, ParameterHealth> */}
       <div className="p-4 rounded border bg-surface-1 border-border">

@@ -26,7 +26,7 @@ export const StationDetailsPage: React.FC = () => {
   }, [rawStationId, allStations, navigate]);
 
   const { data: station, isLoading: isLoadingStation, isError } = useStation(activeStationId);
-  const { data: historyData } = useStationHistory(activeStationId, { limit: 150 });
+  const { data: historyData } = useStationHistory(activeStationId, { limit: 150, order: 'desc' });
   const { data: healthData } = useStationHealth(activeStationId);
   const { data: anomaliesData } = useAnomalies({ stationId: activeStationId, limit: 5 });
 
@@ -210,6 +210,7 @@ export const StationDetailsPage: React.FC = () => {
             <HealthTrend
               components={healthData.component_scores}
               parameterHealth={healthData.parameter_health}
+              isInsufficientHistory={healthData.status_band === 'INSUFFICIENT_HISTORY' || (healthData.overall_health_score === null && (latest?.latest_health_score ?? null) === null)}
             />
           )}
 

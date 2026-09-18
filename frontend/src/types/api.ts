@@ -12,7 +12,15 @@ export type HybridDecisionType =
 
 export type AlertSeverity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
-export type HealthStatusBand = 'HEALTHY' | 'DEGRADED' | 'CRITICAL' | 'OFFLINE';
+export type HealthStatusBand =
+  | 'HEALTHY'
+  | 'GOOD'
+  | 'ATTENTION'
+  | 'DEGRADED'
+  | 'CRITICAL'
+  | 'INSUFFICIENT_HISTORY'
+  | 'OFFLINE';
+
 
 export type StationOperationalStatus = 'ACTIVE' | 'DEGRADED' | 'MAINTENANCE' | 'OFFLINE' | 'DECOMMISSIONED';
 

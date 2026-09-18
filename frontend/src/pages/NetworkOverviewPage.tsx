@@ -25,6 +25,7 @@ import {
   formatLatency,
   formatIsoUtc,
 } from '../utils/formatters';
+import { useRunContext } from '../hooks/useRunContext';
 import {
   Radio,
   AlertTriangle,
@@ -41,6 +42,7 @@ import {
 
 export const NetworkOverviewPage: React.FC = () => {
   const navigate = useNavigate();
+  const { context } = useRunContext();
   const { data: stations = [], isLoading: isLoadingStations } = useStations();
   const { data: anomalyData, isLoading: isLoadingAnomalies } = useAnomalies({ limit: 10 });
   const { data: systemHealth } = useSystemHealth();
@@ -90,8 +92,11 @@ export const NetworkOverviewPage: React.FC = () => {
       (s.state && s.state.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const isLiveDisconnected = liveSource?.status === 'AUTH_ERROR' || liveSource?.status === 'CONFIG_ERROR' || liveSource?.status === 'RATE_LIMITED';
-  const isDemoActive = (replayStatus?.emitted_count ?? 0) > 0 || replayStatus?.is_running;
+  const isLiveDisconnected =
+    context?.source_type === 'OPEN_METEO' &&
+    (liveSource?.status === 'AUTH_ERROR' ||
+      liveSource?.status === 'CONFIG_ERROR' ||
+      liveSource?.status === 'RATE_LIMITED');
 
   // Source state badge color helper
   const getSourceBadge = (state?: string) => {
@@ -177,8 +182,8 @@ export const NetworkOverviewPage: React.FC = () => {
       header: 'Health Index',
       align: 'center',
       render: (stn) => {
-        const score = stn.latest_snapshot?.latest_health_score ?? 100;
-        const color = score < 60 ? 'text-red-400' : score < 85 ? 'text-amber-400' : 'text-emerald-400';
+        const score = stn.latest_snapshot?.latest_health_score ?? null;
+        const color = score === null ? 'text-slate-500' : score < 60 ? 'text-red-400' : score < 85 ? 'text-amber-400' : 'text-emerald-400';
         return <span className={`font-mono font-medium ${color}`}>{formatHealthScore(score)}/100</span>;
       },
       sortable: true,
@@ -223,145 +228,163 @@ export const NetworkOverviewPage: React.FC = () => {
             <div>
               <strong className="font-mono text-red-300">LIVE SOURCE UNAVAILABLE</strong>
               <p className="text-slate-300 text-[11px]">
-                Cannot connect to live weather telemetry upstream. Switch to deterministic Demo Replay Mode to execute standard evaluation narratives.
+                Cannot connect to live weather telemetry upstream. Source state: DEGRADED / STALE. Displaying last verified provider telemetry.
               </p>
             </div>
           </div>
-          <button
-            onClick={() => stepMutation.mutate(8)}
-            disabled={stepMutation.isPending}
-            className="px-3 py-1 bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 text-xs font-mono font-semibold rounded border border-indigo-700 transition-colors"
-          >
-            Switch to Demo Replay Mode
-          </button>
         </div>
       )}
 
-      {/* 1. Deterministic Demo & Replay Operations Controller */}
-      <div className="p-3 rounded border border-indigo-900/60 bg-gradient-to-r from-surface-1 via-indigo-950/20 to-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span className="font-mono font-bold text-slate-200 text-xs uppercase tracking-wider">
-              Demo Controller:
-            </span>
-          </div>
-
-          {/* Scenario Selector */}
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedScenarioId}
-              onChange={handleScenarioChange}
-              className="bg-surface-2 border border-border text-slate-200 text-xs font-mono rounded px-2.5 py-1 focus:outline-none focus:border-indigo-500"
-            >
-              {scenarios.map((sc: any, idx: number) => {
-                const sId = sc.scenario_id || sc.id || `scenario-${idx}`;
-                const sName = sc.scenario_name || sc.name || sId;
-                return (
-                  <option key={sId} value={sId}>
-                    {sName}
-                  </option>
-                );
-              })}
-              {scenarios.length === 0 && (
-                <option value="flagship_narrative">Flagship Multi-Fault Narrative</option>
-              )}
-            </select>
-          </div>
-
-          {/* Replay State Metrics */}
-          <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400 border-l border-border-subtle pl-3">
-            <span>Progress: <strong className="text-indigo-300">{replayStatus?.current_index ?? 0}</strong> / {replayStatus?.total_queued_observations ?? 384}</span>
-            <span className="text-slate-600">|</span>
-            <span>Emitted: <strong className="text-slate-200">{replayStatus?.emitted_count ?? 0}</strong></span>
-          </div>
-        </div>
-
-        {/* Demo Action Buttons */}
-        <div className="flex items-center gap-2 font-mono text-xs">
-          <button
-            onClick={() => stepMutation.mutate(1)}
-            disabled={stepMutation.isPending}
-            className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-hover border border-border text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-            title="Step simulation forward by 1 station observation"
-          >
-            <Play className="w-3 h-3 text-indigo-400" />
-            <span>Step 1 AWS</span>
-          </button>
-
-          <button
-            onClick={() => stepMutation.mutate(8)}
-            disabled={stepMutation.isPending}
-            className="px-2.5 py-1 rounded bg-indigo-950 hover:bg-indigo-900 border border-indigo-700 text-indigo-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 font-semibold"
-            title="Step simulation forward by 1 network cycle (all 8 stations)"
-          >
-            <FastForward className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Step Cycle (8 AWS)</span>
-          </button>
-
-          <button
-            onClick={() => resetMutation.mutate()}
-            disabled={resetMutation.isPending}
-            className="px-2.5 py-1 rounded bg-surface-2 hover:bg-red-950/40 border border-border hover:border-red-800 text-slate-300 hover:text-red-300 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-            title="Safely reset replay pointer to initial step without mutating production database"
-          >
-            <RotateCcw className="w-3 h-3 text-slate-400" />
-            <span>Reset Demo</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Live Source & Upstream Ingestion Operations Bar */}
-      <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Upstream Source Badge */}
-          <div className="flex items-center gap-2">
-            <Globe className="w-4 h-4 text-ops-weather" />
+      {/* 1. Deterministic Demo & Replay Operations Controller (STRICTLY GATED TO SYNTHETIC REPLAY) */}
+      {context?.mode === 'SYNTHETIC_REPLAY' && (
+        <div className="p-3 rounded border border-indigo-900/60 bg-gradient-to-r from-surface-1 via-indigo-950/20 to-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded text-[10px] font-mono border flex items-center gap-1.5 font-bold ${sourceBadge.bg}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${sourceBadge.dot}`} />
-                {sourceBadge.label}
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <span className="font-mono font-bold text-slate-200 text-xs uppercase tracking-wider">
+                Synthetic Benchmark Controller:
               </span>
-              <span className="text-[11px] font-mono text-slate-400">
-                Provider: <strong className="text-slate-200 uppercase">{liveSource?.provider || 'Open-Meteo'}</strong>
-              </span>
+            </div>
+
+            {/* Scenario Selector */}
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedScenarioId}
+                onChange={handleScenarioChange}
+                className="bg-surface-2 border border-border text-slate-200 text-xs font-mono rounded px-2.5 py-1 focus:outline-none focus:border-indigo-500"
+              >
+                {scenarios.map((sc: any, idx: number) => {
+                  const sId = sc.scenario_id || sc.id || `scenario-${idx}`;
+                  const sName = sc.scenario_name || sc.name || sId;
+                  return (
+                    <option key={sId} value={sId}>
+                      {sName}
+                    </option>
+                  );
+                })}
+                {scenarios.length === 0 && (
+                  <option value="flagship_narrative">Flagship Multi-Fault Narrative</option>
+                )}
+              </select>
+            </div>
+
+            {/* Replay State Metrics */}
+            <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400 border-l border-border-subtle pl-3">
+              <span>Progress: <strong className="text-indigo-300">{context?.current_observation_index ?? replayStatus?.current_index ?? 0}</strong> / {context?.observation_count ?? replayStatus?.total_queued_observations ?? 384}</span>
+              <span className="text-slate-600">|</span>
+              <span>Emitted: <strong className="text-slate-200">{context?.current_observation_index ?? replayStatus?.emitted_count ?? 0}</strong></span>
             </div>
           </div>
 
-          {/* Station Freshness Layer Breakdown */}
-          <div className="flex items-center gap-2 font-mono text-[11px] border-l border-border-subtle pl-4">
-            <span className="text-slate-400 text-[10px] uppercase">Telemetry Ingestion:</span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
-              {liveSource?.counts?.live_stations ?? activeStations} LIVE
-            </span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800">
-              {liveSource?.counts?.stale_stations ?? 0} STALE
-            </span>
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-300 border border-red-800">
-              {liveSource?.counts?.offline_stations ?? (totalStations - activeStations)} OFFLINE
-            </span>
-          </div>
+          {/* Demo Action Buttons */}
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <button
+              onClick={() => stepMutation.mutate(1)}
+              disabled={stepMutation.isPending}
+              className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-hover border border-border text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              title="Step simulation forward by 1 station observation"
+            >
+              <Play className="w-3 h-3 text-indigo-400" />
+              <span>Step 1 AWS</span>
+            </button>
 
-          {/* Latency & Last Update */}
-          <div className="hidden lg:flex items-center gap-3 font-mono text-[11px] border-l border-border-subtle pl-4 text-slate-400">
-            <div>API Latency: <strong className="text-slate-200">{formatLatency(liveSource?.metrics?.mean_request_latency_ms ?? liveSource?.last_request_latency_ms ?? 45.0)}</strong></div>
-            <div>Last Ingestion: <span className="text-slate-300">{liveSource?.metrics?.last_poll_cycle_start ? formatIsoUtc(liveSource.metrics.last_poll_cycle_start, true) : 'Recent'}</span></div>
+            <button
+              onClick={() => stepMutation.mutate(8)}
+              disabled={stepMutation.isPending}
+              className="px-2.5 py-1 rounded bg-indigo-950 hover:bg-indigo-900 border border-indigo-700 text-indigo-200 flex items-center gap-1.5 transition-colors disabled:opacity-50 font-semibold"
+              title="Step simulation forward by 1 network cycle (all 8 stations)"
+            >
+              <FastForward className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Step Cycle (8 AWS)</span>
+            </button>
+
+            <button
+              onClick={() => resetMutation.mutate()}
+              disabled={resetMutation.isPending}
+              className="px-2.5 py-1 rounded bg-surface-2 hover:bg-red-950/40 border border-border hover:border-red-800 text-slate-300 hover:text-red-300 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              title="Safely reset replay pointer to initial step without mutating production database"
+            >
+              <RotateCcw className="w-3 h-3 text-slate-400" />
+              <span>Reset Demo</span>
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Manual Poll Trigger */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => pollMutation.mutate()}
-            disabled={pollMutation.isPending}
-            className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-hover border border-border text-[11px] font-mono text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-            title="Trigger on-demand live poll cycle"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${pollMutation.isPending ? 'animate-spin text-ops-weather' : 'text-slate-400'}`} />
-            <span>{pollMutation.isPending ? 'Polling...' : 'Poll Now'}</span>
-          </button>
+      {/* 2. Live Source & Upstream Ingestion Operations Bar (GATED STRICTLY TO OPEN_METEO / LIVE_MONITORING) */}
+      {context?.source_type === 'OPEN_METEO' && (
+        <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Upstream Source Badge */}
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-ops-weather" />
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-mono border flex items-center gap-1.5 font-bold ${sourceBadge.bg}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${sourceBadge.dot}`} />
+                  {sourceBadge.label}
+                </span>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Provider: <strong className="text-slate-200 uppercase">{liveSource?.provider || 'Open-Meteo'}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Station Freshness Layer Breakdown */}
+            <div className="flex items-center gap-2 font-mono text-[11px] border-l border-border-subtle pl-4">
+              <span className="text-slate-400 text-[10px] uppercase">Telemetry Ingestion:</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
+                {liveSource?.counts?.live_stations ?? activeStations} LIVE
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800">
+                {liveSource?.counts?.stale_stations ?? 0} STALE
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-950 text-red-300 border border-red-800">
+                {liveSource?.counts?.offline_stations ?? (totalStations - activeStations)} OFFLINE
+              </span>
+            </div>
+
+            {/* Latency & Last Update */}
+            <div className="hidden lg:flex items-center gap-3 font-mono text-[11px] border-l border-border-subtle pl-4 text-slate-400">
+              <div>API Latency: <strong className="text-slate-200">{formatLatency(liveSource?.metrics?.mean_request_latency_ms ?? liveSource?.last_request_latency_ms ?? 45.0)}</strong></div>
+              <div>Last Ingestion: <span className="text-slate-300">{liveSource?.metrics?.last_poll_cycle_start ? formatIsoUtc(liveSource.metrics.last_poll_cycle_start, true) : 'Recent'}</span></div>
+            </div>
+          </div>
+
+          {/* Manual Poll Trigger */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => pollMutation.mutate()}
+              disabled={pollMutation.isPending}
+              className="px-2.5 py-1 rounded bg-surface-2 hover:bg-surface-hover border border-border text-[11px] font-mono text-slate-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              title="Trigger on-demand live poll cycle"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${pollMutation.isPending ? 'animate-spin text-ops-weather' : 'text-slate-400'}`} />
+              <span>{pollMutation.isPending ? 'Polling...' : 'Poll Now'}</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Historical Dataset Operations Bar */}
+      {context?.source_type === 'HISTORICAL_CSV' && (
+        <div className="p-3 rounded border border-blue-900/50 bg-blue-950/20 flex flex-wrap items-center justify-between gap-3 text-data font-mono text-[11px]">
+          <div className="flex items-center gap-3">
+            <span className="px-2 py-0.5 rounded text-[10px] bg-blue-950 text-blue-300 border border-blue-800 font-bold">
+              HISTORICAL DATASET
+            </span>
+            <span className="text-slate-300">
+              Dataset: <strong className="text-slate-100">{context.dataset_id || 'IMD_NCR_2023_HISTORICAL.csv'}</strong>
+            </span>
+            <span className="text-slate-400">
+              Observations: <strong className="text-slate-200">{context.observation_count.toLocaleString()}</strong> across <strong className="text-slate-200">{context.station_count}</strong> AWS
+            </span>
+          </div>
+          <div className="text-slate-400">
+            Mode: <strong className="text-blue-300">{context.mode === 'HISTORICAL_REPLAY' ? 'Sequential Replay' : 'Batch Analysis'}</strong>
+          </div>
+        </div>
+      )}
+
 
       {/* 3. Compact Network Operational Status Strip */}
       <div className="p-3 rounded border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3 text-data">
@@ -413,7 +436,7 @@ export const NetworkOverviewPage: React.FC = () => {
         {/* Pipeline Latency & Refresh Cadence */}
         <div className="text-right text-[11px] font-mono text-slate-400 hidden md:block">
           <div>Pipeline Latency: <strong className="text-slate-300">{formatLatency(systemHealth?.mean_pipeline_latency_ms ?? 5.8)}</strong></div>
-          <div>Operating Mode: <span className="text-indigo-400">{isDemoActive ? 'Demo Replay' : 'Live Mode'}</span></div>
+          <div>Operating Mode: <span className="text-indigo-400 font-semibold">{context?.mode ? context.mode.replace('_', ' ') : 'SYNTHETIC REPLAY'}</span></div>
         </div>
       </div>
 

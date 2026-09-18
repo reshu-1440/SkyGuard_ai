@@ -11,11 +11,14 @@ import { CorrectionReviewPage } from './pages/CorrectionReviewPage';
 import { HistoricalAnalysisPage } from './pages/HistoricalAnalysisPage';
 import { SystemStatusPage } from './pages/SystemStatusPage';
 
+import { RunContextProvider } from './context/RunContext';
+import { RealtimeStreamProvider } from './context/RealtimeStreamContext';
+
 // Configure TanStack Query Client with optimal defaults
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 3000,
+      staleTime: 2000,
       retry: 1,
       refetchOnWindowFocus: false,
     },
@@ -25,26 +28,31 @@ const queryClient = new QueryClient({
 export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Navigate to="/network" replace />} />
-            <Route path="/network" element={<NetworkOverviewPage />} />
-            <Route path="/live" element={<LiveMonitoringPage />} />
-            <Route path="/stations" element={<StationDetailsPage />} />
-            <Route path="/stations/:stationId" element={<StationDetailsPage />} />
-            <Route path="/anomalies" element={<AnomalyInvestigationPage />} />
-            <Route path="/anomalies/:eventId" element={<AnomalyInvestigationPage />} />
-            <Route path="/health" element={<SensorHealthPage />} />
-            <Route path="/corrections" element={<CorrectionReviewPage />} />
-            <Route path="/history" element={<HistoricalAnalysisPage />} />
-            <Route path="/system" element={<SystemStatusPage />} />
-            <Route path="*" element={<Navigate to="/network" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <RunContextProvider>
+        <RealtimeStreamProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Navigate to="/network" replace />} />
+                <Route path="/network" element={<NetworkOverviewPage />} />
+                <Route path="/live" element={<LiveMonitoringPage />} />
+                <Route path="/stations" element={<StationDetailsPage />} />
+                <Route path="/stations/:stationId" element={<StationDetailsPage />} />
+                <Route path="/anomalies" element={<AnomalyInvestigationPage />} />
+                <Route path="/anomalies/:eventId" element={<AnomalyInvestigationPage />} />
+                <Route path="/health" element={<SensorHealthPage />} />
+                <Route path="/corrections" element={<CorrectionReviewPage />} />
+                <Route path="/history" element={<HistoricalAnalysisPage />} />
+                <Route path="/system" element={<SystemStatusPage />} />
+                <Route path="*" element={<Navigate to="/network" replace />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </RealtimeStreamProvider>
+      </RunContextProvider>
     </QueryClientProvider>
   );
 };
 
 export default App;
+

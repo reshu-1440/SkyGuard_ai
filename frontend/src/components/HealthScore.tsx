@@ -17,11 +17,14 @@ export const HealthScore: React.FC<HealthScoreProps> = ({
   size = 'md',
   showDisclaimer = false,
 }) => {
-  const displayScore = score !== null && score !== undefined ? Math.round(score) : '--';
+  const isInsufficient = band === 'INSUFFICIENT_HISTORY' || trend === 'INSUFFICIENT_HISTORY' || score === null || score === undefined;
+  const displayScore = !isInsufficient && typeof score === 'number' ? Math.round(score) : '--';
 
   let badgeColor = 'bg-emerald-950 text-emerald-300 border-emerald-800';
 
-  if (typeof score === 'number') {
+  if (isInsufficient) {
+    badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
+  } else if (typeof score === 'number') {
     if (score < 60 || band === 'CRITICAL') {
       badgeColor = 'bg-red-950 text-red-300 border-red-800';
     } else if (score < 85 || band === 'DEGRADED') {
@@ -29,17 +32,17 @@ export const HealthScore: React.FC<HealthScoreProps> = ({
     }
   }
 
-  const TrendIcon = trend === 'IMPROVING' ? TrendingUp : trend === 'DEGRADING' ? TrendingDown : Minus;
-  const trendColor = trend === 'IMPROVING' ? 'text-emerald-400' : trend === 'DEGRADING' ? 'text-amber-400' : 'text-slate-400';
+  const TrendIcon = isInsufficient ? Minus : trend === 'IMPROVING' ? TrendingUp : trend === 'DEGRADING' ? TrendingDown : Minus;
+  const trendColor = isInsufficient ? 'text-slate-500' : trend === 'IMPROVING' ? 'text-emerald-400' : trend === 'DEGRADING' ? 'text-amber-400' : 'text-slate-400';
 
   if (size === 'sm') {
     return (
       <span className="inline-flex items-center gap-1.5 font-mono text-data">
-        <span className={`font-semibold ${typeof score === 'number' && score < 60 ? 'text-red-400' : typeof score === 'number' && score < 85 ? 'text-amber-400' : 'text-emerald-400'}`}>
+        <span className={`font-semibold ${isInsufficient ? 'text-slate-400' : typeof score === 'number' && score < 60 ? 'text-red-400' : typeof score === 'number' && score < 85 ? 'text-amber-400' : 'text-emerald-400'}`}>
           {displayScore}/100
         </span>
         <span className={`px-1 py-0.2 rounded text-[10px] uppercase border ${badgeColor}`}>
-          {band}
+          {band ? band.replace('_', ' ') : 'HEALTHY'}
         </span>
       </span>
     );
@@ -52,7 +55,7 @@ export const HealthScore: React.FC<HealthScoreProps> = ({
           Sensor Health Index
         </span>
         <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-medium uppercase border ${badgeColor}`}>
-          {band}
+          {band ? band.replace('_', ' ') : 'HEALTHY'}
         </span>
       </div>
 
@@ -63,15 +66,20 @@ export const HealthScore: React.FC<HealthScoreProps> = ({
         </span>
         <div className={`flex items-center gap-1 text-data font-medium ${trendColor}`}>
           <TrendIcon className="w-4 h-4" />
-          <span className="text-[11px] font-mono uppercase">{trend}</span>
+          <span className="text-[11px] font-mono uppercase">{trend ? trend.replace('_', ' ') : 'STABLE'}</span>
         </div>
       </div>
 
-      {showDisclaimer && (
+      {isInsufficient ? (
+        <p className="mt-3 text-[11px] text-slate-400 leading-normal border-t border-border-subtle pt-2 font-mono">
+          <strong className="text-slate-300">Baseline in Progress:</strong> Minimum 12 observations required in lookback window to calculate statistically calibrated health index.
+        </p>
+      ) : showDisclaimer ? (
         <p className="mt-3 text-[11px] text-slate-500 leading-normal border-t border-border-subtle pt-2">
           <strong>Scientific Notice:</strong> Health Index is NOT a failure probability. It represents composite empirical scoring across anomaly density, physical consistency, and telemetry stability.
         </p>
-      )}
+      ) : null}
     </div>
   );
 };
+
