@@ -7,6 +7,7 @@ interface DataFreshnessIndicatorProps {
   isConnected: boolean;
   secondsSinceLastUpdate: number;
   lastHeartbeat?: Date | null;
+  lastObservationTimestamp?: Date | null;
   connectionStatus?: ConnectionStatus;
   transportMode?: 'WEBSOCKET' | 'POLLING';
   context?: RunContext | null;
@@ -16,6 +17,7 @@ export const DataFreshnessIndicator: React.FC<DataFreshnessIndicatorProps> = ({
   isConnected,
   secondsSinceLastUpdate,
   lastHeartbeat,
+  lastObservationTimestamp,
   connectionStatus = 'CONNECTED',
   transportMode = 'WEBSOCKET',
   context,
@@ -28,13 +30,18 @@ export const DataFreshnessIndicator: React.FC<DataFreshnessIndicatorProps> = ({
     ? new Date(context.current_synthetic_time).toISOString().substring(11, 16) + ' UTC'
     : null;
 
-  const realUpdateStr = lastHeartbeat
+  // Real observation timestamp from provider
+  const obsTimestampStr = lastObservationTimestamp
+    ? lastObservationTimestamp.toISOString().substring(11, 19) + ' UTC'
+    : (lastHeartbeat ? lastHeartbeat.toISOString().substring(11, 19) + ' UTC' : '--:--:--');
+
+  const receiptTimestampStr = lastHeartbeat
     ? lastHeartbeat.toISOString().substring(11, 19) + ' UTC'
     : '--:--:--';
 
   // Format observation age
   const formatAge = (secs: number) => {
-    if (secs < 60) return `${secs.toFixed(0)}s`;
+    if (secs < 60) return `${Math.max(0, secs).toFixed(0)}s`;
     const mins = Math.floor(secs / 60);
     const rem = Math.floor(secs % 60);
     return `${mins}m ${rem}s`;
@@ -78,7 +85,7 @@ export const DataFreshnessIndicator: React.FC<DataFreshnessIndicatorProps> = ({
             </span>
           )}
           <span className="text-slate-400 text-[10px] hidden md:inline">
-            Real: {realUpdateStr}
+            Real: {receiptTimestampStr}
           </span>
           <span className="px-1 py-0.2 rounded bg-indigo-900/80 text-indigo-300 font-semibold text-[10px] border border-indigo-600/40">
             {speed}x
@@ -129,10 +136,10 @@ export const DataFreshnessIndicator: React.FC<DataFreshnessIndicatorProps> = ({
         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
       </span>
       <span className="font-bold tracking-wide">LIVE</span>
-      <span className="text-slate-400 text-[10px] hidden sm:inline">
-        Update: {realUpdateStr}
+      <span className="text-slate-300 text-[10px] hidden sm:inline" title={`Provider Observation: ${obsTimestampStr} | Received: ${receiptTimestampStr}`}>
+        Obs: <span className="text-slate-100 font-semibold">{obsTimestampStr}</span>
       </span>
-      <span className="text-emerald-200 text-[10px]">
+      <span className="text-emerald-300 text-[10px] font-semibold">
         Age: {formatAge(secondsSinceLastUpdate)}
       </span>
       {transportMode === 'WEBSOCKET' ? (
