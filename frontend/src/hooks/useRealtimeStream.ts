@@ -109,6 +109,7 @@ export function useRealtimeStream(): StreamState {
         const payload = envelope.payload as ObservationUpdatedPayload;
         if (payload.station_id) {
           queryClient.invalidateQueries({ queryKey: ['station', payload.station_id, 'latest'] });
+          queryClient.invalidateQueries({ queryKey: ['station', payload.station_id, 'history'] });
           queryClient.invalidateQueries({ queryKey: ['stations'] });
         }
         break;
@@ -117,6 +118,9 @@ export function useRealtimeStream(): StreamState {
       case 'anomaly.updated': {
         queryClient.invalidateQueries({ queryKey: ['anomalies'] });
         queryClient.invalidateQueries({ queryKey: ['stations'] });
+        if (envelope.station_id) {
+          queryClient.invalidateQueries({ queryKey: ['station', envelope.station_id, 'history'] });
+        }
         break;
       }
       case 'health.updated': {
@@ -129,6 +133,9 @@ export function useRealtimeStream(): StreamState {
       }
       case 'correction.created': {
         queryClient.invalidateQueries({ queryKey: ['corrections'] });
+        if (envelope.station_id) {
+          queryClient.invalidateQueries({ queryKey: ['station', envelope.station_id, 'history'] });
+        }
         break;
       }
       case 'station.status_changed': {
@@ -139,6 +146,11 @@ export function useRealtimeStream(): StreamState {
         queryClient.invalidateQueries({ queryKey: ['system'] });
         break;
       }
+      case 'replay.progress': {
+        queryClient.invalidateQueries({ queryKey: ['replay'] });
+        queryClient.invalidateQueries({ queryKey: ['runtime'] });
+        break;
+      }
       case 'heartbeat.pong': {
         // Heartbeat confirmed
         break;
@@ -147,6 +159,7 @@ export function useRealtimeStream(): StreamState {
         break;
     }
   }, [queryClient, recordEventId, isChronologicallyValid]);
+
 
   // WebSocket Connection Management
   useEffect(() => {

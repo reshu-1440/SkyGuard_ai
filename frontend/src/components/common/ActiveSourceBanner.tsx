@@ -1,11 +1,17 @@
 import React from 'react';
 import { RunContext } from '../../types/runtime';
+import { Play, Pause, RotateCcw, FastForward } from 'lucide-react';
+
 
 interface ActiveSourceBannerProps {
   context: RunContext | null;
   onOpenSelector: () => void;
   onOpenDrawer: () => void;
   onOpenHistory: () => void;
+  onStart?: () => void;
+  onPause?: () => void;
+  onReset?: () => void;
+  onSetSpeed?: (speed: number) => void;
 }
 
 export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
@@ -13,6 +19,10 @@ export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
   onOpenSelector,
   onOpenDrawer,
   onOpenHistory,
+  onStart,
+  onPause,
+  onReset,
+  onSetSpeed,
 }) => {
   if (!context) {
     return (
@@ -50,13 +60,18 @@ export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
     }
   };
 
+  const isReplay = context.mode === 'SYNTHETIC_REPLAY' || context.mode === 'HISTORICAL_REPLAY';
+  const isRunning = context.status === 'RUNNING';
+  const speed = context.replay_speed || 60;
+  const speeds = [1, 10, 60, 300];
+
   return (
-    <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between text-xs gap-3 shadow-inner">
-      <div className="flex items-center gap-3">
+    <div className="bg-slate-900 border-b border-slate-800 px-4 py-1.5 flex flex-wrap items-center justify-between text-xs gap-2 shadow-inner">
+      <div className="flex items-center flex-wrap gap-2.5">
         {/* Source selector trigger */}
         <button
           onClick={onOpenSelector}
-          className="flex items-center gap-2 px-3 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold border border-slate-700 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold border border-slate-700 transition-colors"
           title="Change active observation source"
         >
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
@@ -65,7 +80,7 @@ export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
         </button>
 
         {/* Display Active Badges */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-1.5">
           <span
             className={`px-2 py-0.5 rounded font-mono font-medium border ${getSourceBadgeColor(
               context.source_type
@@ -90,20 +105,74 @@ export const ActiveSourceBanner: React.FC<ActiveSourceBannerProps> = ({
             {context.status}
           </span>
         </div>
+
+        {/* Replay Controls (When in Replay Mode) */}
+        {isReplay && (
+          <div className="flex items-center gap-1.5 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-700/80">
+            {isRunning ? (
+              <button
+                onClick={onPause}
+                className="px-2 py-0.5 rounded bg-amber-950/80 hover:bg-amber-900 text-amber-300 font-semibold flex items-center gap-1 border border-amber-700/60 transition-colors"
+                title="Pause continuous replay stream"
+              >
+                <Pause className="w-3 h-3 text-amber-400" />
+                <span>PAUSE</span>
+              </button>
+            ) : (
+              <button
+                onClick={onStart}
+                className="px-2 py-0.5 rounded bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-semibold flex items-center gap-1 border border-emerald-700/60 transition-colors"
+                title="Start continuous replay stream"
+              >
+                <Play className="w-3 h-3 text-emerald-400 fill-emerald-400" />
+                <span>START</span>
+              </button>
+            )}
+
+            <button
+              onClick={onReset}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center gap-1 border border-slate-600/60 transition-colors"
+              title="Reset replay simulation"
+            >
+              <RotateCcw className="w-3 h-3 text-slate-400" />
+              <span>RESET</span>
+            </button>
+
+            {/* Speed Multiplier Buttons */}
+            <div className="flex items-center gap-0.5 ml-1">
+              <span className="text-[10px] text-slate-400 mr-1 flex items-center gap-0.5">
+                <FastForward className="w-2.5 h-2.5" /> SPEED:
+              </span>
+              {speeds.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => onSetSpeed && onSetSpeed(s)}
+                  className={`px-1.5 py-0.5 text-[10px] font-mono rounded font-semibold transition-colors ${
+                    speed === s
+                      ? 'bg-indigo-600 text-white font-bold'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                  }`}
+                >
+                  {s}x
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2">
         <button
           onClick={onOpenDrawer}
-          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded font-medium border border-cyan-800/40 transition-colors flex items-center gap-1.5"
+          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded font-medium border border-cyan-800/40 transition-colors flex items-center gap-1.5"
         >
           <span>📊</span> DATASET INFO
         </button>
 
         <button
           onClick={onOpenHistory}
-          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-medium border border-slate-700 transition-colors flex items-center gap-1.5"
+          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-medium border border-slate-700 transition-colors flex items-center gap-1.5"
         >
           <span>📜</span> RUN HISTORY
         </button>

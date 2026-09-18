@@ -17,8 +17,22 @@ class EventType(str, Enum):
     CORRECTION_CREATED = "correction.created"
     STATION_STATUS_CHANGED = "station.status_changed"
     SYSTEM_STATUS_CHANGED = "system.status_changed"
+    REPLAY_PROGRESS = "replay.progress"
     HEARTBEAT_PING = "heartbeat.ping"
     HEARTBEAT_PONG = "heartbeat.pong"
+
+
+class ReplayProgressPayload(BaseModel):
+    """Payload for replay.progress events."""
+    current_index: int
+    total_observations: int
+    emitted_count: int
+    is_running: bool
+    speed_multiplier: float
+    current_synthetic_time: Optional[str] = None
+    last_station_id: Optional[str] = None
+    scenario_id: Optional[str] = None
+
 
 
 class ObservationUpdatedPayload(BaseModel):

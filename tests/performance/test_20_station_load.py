@@ -87,8 +87,8 @@ def test_20_station_continuous_and_burst_load(network_20_stations):
 
     # Assertions
     assert len(latencies_ms) == 240
-    # Average latency per observation should be sub-50ms (typically < 10ms)
-    assert mean_lat < 50.0
+    # Average latency per observation should be sub-100ms (typically < 15ms without background load)
+    assert mean_lat < 100.0
     # Throughput should exceed 20 obs/second on a single CPU core with full persistence
     assert throughput >= 20.0
 

@@ -127,7 +127,7 @@ export const NetworkMap: React.FC<NetworkMapProps> = ({
       : [23.5937, 78.9629]; // Center of India network
 
   return (
-    <div className="w-full rounded border border-border overflow-hidden relative bg-surface-1" style={{ height }}>
+    <div className="w-full rounded border border-border overflow-hidden relative bg-surface-1 isolate z-0" style={{ height }}>
       <MapContainer
         center={defaultCenter}
         zoom={5}

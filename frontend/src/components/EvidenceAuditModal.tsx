@@ -10,7 +10,7 @@ export const EvidenceAuditModal: React.FC<EvidenceAuditModalProps> = ({ isOpen, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
       <div className="bg-surface-1 border border-border rounded-lg shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden text-slate-200">
         {/* Header */}
         <div className="px-5 py-3 border-b border-border bg-surface-2 flex items-center justify-between">

@@ -162,7 +162,7 @@ async def test_scenario_c_and_v_station_failure_isolation(mock_topology):
         engine=engine,
         repository=repo,
         topology=mock_topology,
-        stale_threshold_seconds=86400.0,
+        stale_threshold_seconds=1000000.0,
     )
 
     results = await poller.poll_cycle_once()

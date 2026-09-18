@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from backend.app.core.database import DatabaseRepository
+from backend.app.core.logging import get_logger
 from backend.app.core.state import StationStateManager
 from backend.app.core.ws_manager import WebSocketConnectionManager, get_ws_manager
 from backend.app.models.events import (
@@ -53,6 +54,8 @@ from ml.imputation.schema import CorrectionRecommendation
 from ml.models.isolation_forest import IsolationForestDetector
 from ml.spatial.engine import SpatialContextEngine
 from ml.spatial.topology import SpatialNetworkTopology
+
+logger = get_logger("engine")
 
 
 class RealTimeProcessingEngine:
@@ -554,6 +557,39 @@ class RealTimeProcessingEngine:
                     timestamp=observation.timestamp,
                     payload=corr_payload,
                 ))
+
+        # 11. Terminal Observability Telemetry Logging
+        dec_val = decision.decision.value if hasattr(decision.decision, "value") else str(decision.decision)
+        qc_val = observation.data_quality_status.value if hasattr(observation.data_quality_status, "value") else str(observation.data_quality_status)
+        temp_str = f"{observation.temperature:.1f}°C" if observation.temperature is not None else "N/A"
+        rh_str = f"{observation.humidity:.1f}%" if observation.humidity is not None else "N/A"
+        pres_str = f"{observation.pressure:.1f}hPa" if observation.pressure is not None else "N/A"
+
+        if is_anomalous:
+            logger.warning(
+                "[TELEMETRY ALERT] ⚠️ Station: %s | T: %s | RH: %s | P: %s | QC: %s | Decision: %s (%s) | Event: %s | Latency: %.2fms",
+                observation.station_id,
+                temp_str,
+                rh_str,
+                pres_str,
+                qc_val,
+                dec_val,
+                str(decision.severity.value if hasattr(decision.severity, "value") else decision.severity),
+                assigned_event_id,
+                total_pipeline_ms,
+            )
+        else:
+            logger.info(
+                "[TELEMETRY] 📡 Station: %s | T: %s | RH: %s | P: %s | QC: %s | Decision: %s | Score: %.3f | Latency: %.2fms",
+                observation.station_id,
+                temp_str,
+                rh_str,
+                pres_str,
+                qc_val,
+                dec_val,
+                ml_score or 0.0,
+                total_pipeline_ms,
+            )
 
         # Build latency profile
         latency_breakdown = ProcessingLatencyBreakdown(

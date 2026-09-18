@@ -13,7 +13,7 @@ import { TopBar } from './TopBar';
 
 export const AppLayout: React.FC = () => {
   const { isDegraded } = useRealtimeStream();
-  const { context, selectSource } = useRunContext();
+  const { context, selectSource, startRun, pauseRun, resetRun, setSpeed } = useRunContext();
 
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -31,7 +31,12 @@ export const AppLayout: React.FC = () => {
         onOpenSelector={() => setIsSelectorOpen(true)}
         onOpenDrawer={() => setIsDrawerOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onStart={startRun}
+        onPause={pauseRun}
+        onReset={resetRun}
+        onSetSpeed={setSpeed}
       />
+
 
       {/* Optional Degraded Mode Alert Banner */}
       {isDegraded && <DegradedModeBanner />}

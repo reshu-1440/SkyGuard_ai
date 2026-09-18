@@ -133,7 +133,8 @@ export const WeatherTrendChart: React.FC<WeatherTrendChartProps> = ({
                 dot={false}
                 activeDot={{ r: 4, stroke: color, fill: '#0B0F17' }}
                 connectNulls={false}
-                isAnimationActive={false}
+                isAnimationActive={true}
+                animationDuration={400}
               />
 
               {/* Imputed / Model Estimate - Dashed Line */}
@@ -145,7 +146,8 @@ export const WeatherTrendChart: React.FC<WeatherTrendChartProps> = ({
                 strokeDasharray="4 4"
                 dot={false}
                 connectNulls={false}
-                isAnimationActive={false}
+                isAnimationActive={true}
+                animationDuration={400}
               />
             </LineChart>
           </ResponsiveContainer>

@@ -94,9 +94,57 @@ async def step_replay_simulation(
     }
 
 
+class SetSpeedRequest(BaseModel):
+    speed: float
+
+
+@router.post("/speed")
+async def set_replay_speed(
+    payload: SetSpeedRequest,
+    replay: StreamReplayEngine = Depends(get_replay_engine),
+) -> Dict[str, Any]:
+    """Dynamically adjust stream replay speed (1x, 10x, 60x, 300x)."""
+    new_speed = replay.set_speed(payload.speed)
+    return {
+        "status": "success",
+        "speed_multiplier": new_speed,
+        "is_running": replay.is_running,
+    }
+
+
+@router.post("/start")
+async def start_replay_simulation(
+    replay: StreamReplayEngine = Depends(get_replay_engine),
+    engine: RealTimeProcessingEngine = Depends(get_engine),
+) -> Dict[str, Any]:
+    """Start or resume continuous asynchronous replay stream."""
+    await replay.start(engine=engine)
+    return {
+        "status": "RUNNING",
+        "is_running": True,
+        "speed_multiplier": replay.speed_multiplier,
+        "current_index": replay.current_index,
+        "total_observations": len(replay.observations),
+    }
+
+
+@router.post("/pause")
+async def pause_replay_simulation(
+    replay: StreamReplayEngine = Depends(get_replay_engine),
+) -> Dict[str, Any]:
+    """Pause continuous asynchronous replay stream."""
+    await replay.pause()
+    return {
+        "status": "PAUSED",
+        "is_running": False,
+        "current_index": replay.current_index,
+    }
+
+
 @router.post("/reset")
 async def reset_replay_simulation(
     replay: StreamReplayEngine = Depends(get_replay_engine),
 ) -> Dict[str, Any]:
     """Reset transient demo simulation state without destructive database operations."""
     return replay.reset(preserve_db=True)
+

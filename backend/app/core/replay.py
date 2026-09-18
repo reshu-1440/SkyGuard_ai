@@ -15,9 +15,12 @@ from pydantic import BaseModel
 from backend.app.connectors.provider_registry import SyntheticValidationConnector
 from backend.app.core.config import get_project_root
 from backend.app.core.engine import RealTimeProcessingEngine
+from backend.app.core.logging import get_logger
 from backend.app.models.observation import ObservationSource, QualityStatus, WeatherObservation
 from backend.app.models.processing import ProcessingResult
 from backend.app.models.run_context import DataSourceType, RunContext, RunMode, RunStatus, TransportType
+
+logger = get_logger("replay")
 
 
 class SyntheticGroundTruth(BaseModel):
@@ -46,7 +49,7 @@ class StreamReplayEngine:
         self.is_running = False
         self.emitted_count = 0
         self.current_index = 0
-        self.current_scenario_id: str = "SV01"
+        self.current_scenario_id: str = "flagship_narrative"
         self.injected_anomalies: Dict[str, Dict[str, Any]] = {}
         self._playback_task: Optional[asyncio.Task] = None
 
@@ -67,8 +70,23 @@ class StreamReplayEngine:
                 self.observations.sort(key=lambda o: o.timestamp)
             self.current_index = 0
             self.emitted_count = 0
+            self.current_scenario_id = "SV01"
         except Exception as err:
-            pass
+            logger.warning("Could not load synthetic benchmark: %s", err)
+
+    def load_scenario(self, scenario_id: str) -> bool:
+        """Load a specific demonstration scenario from synthetic benchmark scenarios or demo datasets."""
+        self.current_scenario_id = scenario_id
+        # If matching scenario in observations, seek to its start
+        matching_obs = [
+            o for o in self.observations 
+            if o.metadata and o.metadata.get("scenario_id") == scenario_id
+        ]
+        if matching_obs:
+            self.current_index = self.observations.index(matching_obs[0])
+            logger.info("Seeked replay index to scenario '%s' (index: %d)", scenario_id, self.current_index)
+            return True
+        return True
 
     def get_available_scenarios(self) -> List[Dict[str, Any]]:
         """Return list of available synthetic benchmark scenarios."""
@@ -88,13 +106,21 @@ class StreamReplayEngine:
                 }
         return list(scenarios.values()) if scenarios else [
             {
+                "scenario_id": "flagship_narrative",
+                "scenario_name": "Flagship Multi-Fault Narrative",
+                "affected_station": "42182099999",
+                "affected_parameter": "temperature",
+                "expected_decision": "PROBABLE_SENSOR_ANOMALY",
+                "validation_result": "PASS",
+            },
+            {
                 "scenario_id": "SV01",
                 "scenario_name": "Clean Baseline",
                 "affected_station": "AWS_NCR_001",
                 "affected_parameter": "temperature",
                 "expected_decision": "VALID",
                 "validation_result": "PASS",
-            }
+            },
         ]
 
     def load_from_dataframe(
@@ -133,11 +159,42 @@ class StreamReplayEngine:
         valid_multipliers = [1.0, 10.0, 60.0, 300.0]
         closest = min(valid_multipliers, key=lambda x: abs(x - multiplier))
         self.speed_multiplier = closest
+        logger.info("[REPLAY] Replay speed adjusted to %.1fx", self.speed_multiplier)
         return self.speed_multiplier
+
+    async def start(
+        self,
+        engine: RealTimeProcessingEngine,
+        ctx_mgr: Optional[Any] = None,
+    ) -> Optional[asyncio.Task]:
+        """Start or resume continuous asynchronous playback loop."""
+        if self.is_running and self._playback_task and not self._playback_task.done():
+            logger.info("StreamReplayEngine playback loop is already running.")
+            return self._playback_task
+
+        self.is_running = True
+        self._playback_task = asyncio.create_task(self._playback_loop(engine, ctx_mgr))
+        logger.info("StreamReplayEngine continuous playback started at %.1fx speed.", self.speed_multiplier)
+        return self._playback_task
+
+    async def pause(self) -> None:
+        """Pause continuous asynchronous playback loop."""
+        self.is_running = False
+        if self._playback_task and not self._playback_task.done():
+            self._playback_task.cancel()
+            try:
+                await self._playback_task
+            except asyncio.CancelledError:
+                pass
+        self._playback_task = None
+        logger.info("StreamReplayEngine playback paused.")
 
     def reset(self, preserve_db: bool = True) -> Dict[str, Any]:
         """Safely reset transient replay simulation state."""
         self.is_running = False
+        if self._playback_task and not self._playback_task.done():
+            self._playback_task.cancel()
+        self._playback_task = None
         self.current_index = 0
         self.emitted_count = 0
         return {
@@ -147,7 +204,80 @@ class StreamReplayEngine:
             "total_observations": len(self.observations),
             "current_scenario_id": self.current_scenario_id,
             "database_preserved": preserve_db,
+            "is_running": False,
+            "speed_multiplier": self.speed_multiplier,
         }
+
+    async def _playback_loop(
+        self,
+        engine: RealTimeProcessingEngine,
+        ctx_mgr: Optional[Any] = None,
+    ) -> None:
+        """Internal asynchronous streaming loop processing observations continuously."""
+        from backend.app.core.ws_manager import get_ws_manager
+        from backend.app.models.events import EventType, ReplayProgressPayload, WebSocketEnvelope
+        from backend.app.models.run_context import RunStatus
+
+        ws_mgr = get_ws_manager()
+
+        while self.is_running and self.current_index < len(self.observations):
+            try:
+                # Step 1 observation through real-time processing engine
+                results = self.step(engine=engine, count=1)
+                if not results:
+                    break
+
+                res = results[0]
+                obs = res.observation
+                obs_time_iso = obs.timestamp.astimezone(timezone.utc).isoformat()
+
+                # Update canonical RunContext if manager provided
+                if ctx_mgr is not None:
+                    ctx_mgr.update_context(
+                        status=RunStatus.RUNNING,
+                        current_observation_index=self.current_index,
+                        current_synthetic_time=obs_time_iso,
+                        replay_speed=self.speed_multiplier,
+                    )
+
+                # Broadcast Replay Progress WebSocket Envelope
+                progress_payload = ReplayProgressPayload(
+                    current_index=self.current_index,
+                    total_observations=len(self.observations),
+                    emitted_count=self.emitted_count,
+                    is_running=self.is_running,
+                    speed_multiplier=self.speed_multiplier,
+                    current_synthetic_time=obs_time_iso,
+                    last_station_id=obs.station_id,
+                    scenario_id=self.current_scenario_id,
+                )
+                ws_mgr.broadcast_sync(WebSocketEnvelope.create(
+                    event_id=f"RPL-PROG-{self.emitted_count:06d}",
+                    event_type=EventType.REPLAY_PROGRESS,
+                    station_id=obs.station_id,
+                    timestamp=obs.timestamp,
+                    payload=progress_payload,
+                ))
+
+                # Responsive speed cadence calculation
+                # 1x -> ~1.2s delay
+                # 10x -> ~0.4s delay
+                # 60x -> ~0.10s delay
+                # 300x -> ~0.025s delay
+                base_delay = 1.2
+                delay = max(0.025, base_delay / (self.speed_multiplier / 1.0))
+                await asyncio.sleep(delay)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.error("[REPLAY] Unexpected error in playback loop: %s", exc, exc_info=True)
+                await asyncio.sleep(1.0)
+
+        self.is_running = False
+        if ctx_mgr is not None and self.current_index >= len(self.observations):
+            ctx_mgr.update_context(status=RunStatus.COMPLETED)
+        logger.info("[REPLAY] Playback loop terminated (running: %s, index: %d)", self.is_running, self.current_index)
 
     def register_injected_anomaly(
         self,
@@ -233,3 +363,12 @@ class StreamReplayEngine:
             self.emitted_count += 1
 
         return results
+
+    def run_synchronous_simulation(
+        self,
+        engine: RealTimeProcessingEngine,
+        max_steps: Optional[int] = None,
+    ) -> List[ProcessingResult]:
+        """Run simulation synchronously up to max_steps or end of stream."""
+        steps_to_run = max_steps if max_steps is not None else len(self.observations)
+        return self.step(engine=engine, count=steps_to_run)

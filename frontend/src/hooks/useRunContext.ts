@@ -4,6 +4,7 @@ import {
   pauseRun,
   resetRun,
   selectDataSource,
+  setReplaySpeed,
   startRun,
 } from '../api/runtime';
 import { DataSourceType, RunContext, RunMode } from '../types/runtime';
@@ -15,7 +16,6 @@ export function useRunContext() {
 
   const refreshContext = useCallback(async () => {
     try {
-      setLoading(true);
       const data = await fetchActiveRunContext();
       setContext(data);
       setError(null);
@@ -28,10 +28,12 @@ export function useRunContext() {
 
   useEffect(() => {
     refreshContext();
-    // Poll context every 5 seconds for status sync
-    const interval = setInterval(refreshContext, 5000);
+    // Adaptive polling: 1.5s when active running/replaying, 4s when idle/paused
+    const isRunning = context?.status === 'RUNNING';
+    const intervalMs = isRunning ? 1500 : 4000;
+    const interval = setInterval(refreshContext, intervalMs);
     return () => clearInterval(interval);
-  }, [refreshContext]);
+  }, [refreshContext, context?.status]);
 
   const handleSelectSource = async (
     sourceType: DataSourceType,
@@ -63,6 +65,11 @@ export function useRunContext() {
     setContext(updated);
   };
 
+  const handleSetSpeed = async (speed: number) => {
+    const updated = await setReplaySpeed(speed);
+    setContext(updated);
+  };
+
   return {
     context,
     loading,
@@ -72,5 +79,7 @@ export function useRunContext() {
     startRun: handleStart,
     pauseRun: handlePause,
     resetRun: handleReset,
+    setSpeed: handleSetSpeed,
   };
 }
+

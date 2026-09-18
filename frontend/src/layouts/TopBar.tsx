@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useRealtimeStream } from '../hooks/useRealtimeStream';
 import { useAnomalies } from '../hooks/useAnomalies';
-import { useReplayStatus, useLiveSourceHealth } from '../hooks/useSystem';
+import { useRunContext } from '../hooks/useRunContext';
+import { useLiveSourceHealth } from '../hooks/useSystem';
 import { DataFreshnessIndicator } from '../components/DataFreshnessIndicator';
 import { EvidenceAuditModal } from '../components/EvidenceAuditModal';
-import { Shield, Bell, Clock, Award, PlayCircle, Radio } from 'lucide-react';
+import { Shield, Bell, Clock, Award, PlayCircle, Radio, Activity, Database, FileSpreadsheet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const TopBar: React.FC = () => {
   const navigate = useNavigate();
   const streamState = useRealtimeStream();
+  const { context } = useRunContext();
   const { data: anomalyData } = useAnomalies({ limit: 100 });
-  const { data: replayStatus } = useReplayStatus();
   const { data: liveSource } = useLiveSourceHealth();
   const [utcTime, setUtcTime] = useState<string>('');
   const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState<boolean>(false);
+  const [pulseCounter, setPulseCounter] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -26,9 +28,86 @@ export const TopBar: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Trigger brief pulse when a new event arrives
+  useEffect(() => {
+    if (streamState.eventsReceivedCount > 0) {
+      setPulseCounter(true);
+      const t = setTimeout(() => setPulseCounter(false), 800);
+      return () => clearTimeout(t);
+    }
+  }, [streamState.eventsReceivedCount]);
+
   const totalAnomalies = anomalyData?.pagination?.total_count ?? 0;
-  const isDemoReplay = (replayStatus?.emitted_count ?? 0) > 0 || replayStatus?.is_running;
-  const liveUnavailable = liveSource?.status === 'AUTH_ERROR' || liveSource?.status === 'CONFIG_ERROR' || liveSource?.status === 'RATE_LIMITED';
+  const sourceType = context?.source_type || 'SYNTHETIC_VALIDATION';
+  const mode = context?.mode || 'SYNTHETIC_REPLAY';
+  const isRunning = context?.status === 'RUNNING';
+
+  // Render truthful operational mode pill matching canonical RunContext
+  const renderModePill = () => {
+    if (sourceType === 'SYNTHETIC_VALIDATION') {
+      return (
+        <span className="bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+          <PlayCircle className={`w-3 h-3 text-indigo-400 ${isRunning ? 'animate-spin' : ''}`} />
+          <span>SYNTHETIC REPLAY</span>
+          {isRunning && <span className="text-indigo-400 font-bold">●</span>}
+        </span>
+      );
+    }
+
+    if (sourceType === 'HISTORICAL_CSV') {
+      if (mode === 'HISTORICAL_REPLAY') {
+        return (
+          <span className="bg-blue-950/80 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+            <FileSpreadsheet className="w-3 h-3 text-blue-400" />
+            <span>HISTORICAL REPLAY</span>
+            {isRunning && <span className="text-blue-400 font-bold">●</span>}
+          </span>
+        );
+      }
+      return (
+        <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+          <Database className="w-3 h-3 text-slate-400" />
+          <span>HISTORICAL ANALYSIS</span>
+        </span>
+      );
+    }
+
+    if (sourceType === 'OPEN_METEO') {
+      const liveUnavailable = liveSource?.status === 'AUTH_ERROR' || liveSource?.status === 'CONFIG_ERROR' || liveSource?.status === 'RATE_LIMITED';
+      if (liveUnavailable) {
+        return (
+          <span className="bg-red-950/80 text-red-300 border border-red-700/60 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+            <Radio className="w-3 h-3 text-red-400" />
+            <span>LIVE API UNAVAILABLE</span>
+          </span>
+        );
+      }
+      return (
+        <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+          <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+          <span>LIVE API (OPEN-METEO)</span>
+        </span>
+      );
+    }
+
+    if (sourceType === 'IMD_AWS') {
+      return (
+        <span className="bg-amber-950/80 text-amber-300 border border-amber-700/60 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+          <Radio className="w-3 h-3 text-amber-400" />
+          <span>IMD AWS (UNCONFIGURED)</span>
+        </span>
+      );
+    }
+
+    return (
+      <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded flex items-center gap-1 font-mono text-[10px]">
+        {sourceType}
+      </span>
+    );
+  };
+
+  const processedCount = context?.current_observation_index ?? streamState.eventsReceivedCount;
+  const totalCount = context?.observation_count ?? 0;
 
   return (
     <>
@@ -46,27 +125,12 @@ export const TopBar: React.FC = () => {
           </div>
 
           {/* Operational Mode Pill */}
-          <div className="hidden md:flex items-center gap-1.5 font-mono text-[10px]">
-            {isDemoReplay ? (
-              <span className="bg-indigo-950/80 text-indigo-300 border border-indigo-700/60 px-2 py-0.5 rounded flex items-center gap-1">
-                <PlayCircle className="w-3 h-3 text-indigo-400" />
-                DEMO REPLAY MODE
-              </span>
-            ) : liveUnavailable ? (
-              <span className="bg-red-950/80 text-red-300 border border-red-700/60 px-2 py-0.5 rounded flex items-center gap-1">
-                <Radio className="w-3 h-3 text-red-400" />
-                LIVE SOURCE UNAVAILABLE
-              </span>
-            ) : (
-              <span className="bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded flex items-center gap-1">
-                <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-                LIVE MODE (OPEN-METEO)
-              </span>
-            )}
+          <div className="hidden md:flex items-center gap-1.5">
+            {renderModePill()}
           </div>
         </div>
 
-        {/* Center: Realtime Telemetry Status */}
+        {/* Center: Realtime Telemetry Status & Observations Counter */}
         <div className="flex items-center gap-3">
           <DataFreshnessIndicator
             isConnected={streamState.isConnected}
@@ -74,7 +138,25 @@ export const TopBar: React.FC = () => {
             lastHeartbeat={streamState.lastHeartbeat}
             connectionStatus={streamState.connectionStatus}
             transportMode={streamState.transportMode}
+            context={context}
           />
+
+          {/* Live Observation Processed Counter */}
+          <div className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded font-mono text-[11px] bg-surface-2 border border-border-subtle">
+            <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-slate-400">PROCESSED:</span>
+            <span className="text-slate-100 font-bold">
+              {mode === 'HISTORICAL_ANALYSIS' ? totalCount.toLocaleString() : processedCount.toLocaleString()}
+              {totalCount > 0 && mode !== 'HISTORICAL_ANALYSIS' && (
+                <span className="text-slate-400 font-normal"> / {totalCount.toLocaleString()}</span>
+              )}
+            </span>
+            {pulseCounter && (
+              <span className="text-emerald-400 font-bold text-[10px] animate-bounce">
+                +1
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Right: Evidence, Clock & Quick Alert Counter */}

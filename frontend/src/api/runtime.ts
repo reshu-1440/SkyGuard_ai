@@ -66,6 +66,17 @@ export async function resetRun(): Promise<RunContext> {
   return res.json();
 }
 
+export async function setReplaySpeed(speed: number): Promise<RunContext> {
+  const res = await fetch(`${API_BASE}/run/speed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ speed }),
+  });
+  if (!res.ok) throw new Error('Failed to set replay speed');
+  return res.json();
+}
+
+
 export async function uploadCsvPreview(file: File): Promise<CSVDatasetPreview> {
   const formData = new FormData();
   formData.append('file', file);

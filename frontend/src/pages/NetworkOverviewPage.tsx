@@ -254,13 +254,17 @@ export const NetworkOverviewPage: React.FC = () => {
               onChange={handleScenarioChange}
               className="bg-surface-2 border border-border text-slate-200 text-xs font-mono rounded px-2.5 py-1 focus:outline-none focus:border-indigo-500"
             >
-              {scenarios.map((sc) => (
-                <option key={sc.id} value={sc.id}>
-                  {sc.name}
-                </option>
-              ))}
+              {scenarios.map((sc: any, idx: number) => {
+                const sId = sc.scenario_id || sc.id || `scenario-${idx}`;
+                const sName = sc.scenario_name || sc.name || sId;
+                return (
+                  <option key={sId} value={sId}>
+                    {sName}
+                  </option>
+                );
+              })}
               {scenarios.length === 0 && (
-                <option value="flagship_narrative">Flagship 8-12 Min Presentation</option>
+                <option value="flagship_narrative">Flagship Multi-Fault Narrative</option>
               )}
             </select>
           </div>

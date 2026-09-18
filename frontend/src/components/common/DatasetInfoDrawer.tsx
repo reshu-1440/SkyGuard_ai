@@ -15,7 +15,7 @@ export const DatasetInfoDrawer: React.FC<DatasetInfoDrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs">
+    <div className="fixed inset-0 z-[9999] overflow-hidden bg-black/60 backdrop-blur-xs">
       <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
         <div className="w-screen max-w-md bg-slate-900 border-l border-slate-800 text-slate-100 p-6 shadow-2xl space-y-6 flex flex-col justify-between overflow-y-auto">
           <div className="space-y-6">

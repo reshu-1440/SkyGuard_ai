@@ -10,8 +10,21 @@ export type EventType =
   | 'correction.created'
   | 'station.status_changed'
   | 'system.status_changed'
+  | 'replay.progress'
   | 'heartbeat.ping'
   | 'heartbeat.pong';
+
+export interface ReplayProgressPayload {
+  current_index: number;
+  total_observations: number;
+  emitted_count: number;
+  is_running: boolean;
+  speed_multiplier: number;
+  current_synthetic_time?: string | null;
+  last_station_id?: string | null;
+  scenario_id?: string | null;
+}
+
 
 export interface ObservationUpdatedPayload {
   station_id: string;
