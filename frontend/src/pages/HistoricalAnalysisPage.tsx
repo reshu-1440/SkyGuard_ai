@@ -6,6 +6,7 @@ import { MetricTable, ColumnDef } from '../components/MetricTable';
 import { AnomalyEventRecord } from '../types/api';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { formatIsoUtc } from '../utils/formatters';
+import { buildAnomalyMarkerMap, normalizeTimestampToSeconds } from '../utils/anomalyMarkers';
 import { History, Calendar, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,7 +27,7 @@ export const HistoricalAnalysisPage: React.FC = () => {
   const { data: historyData } = useStationHistory(selectedStationId, { limit, historical: true });
   const { data: anomaliesData, isLoading: isLoadingAnomalies } = useAnomalies({
     stationId: selectedStationId,
-    limit: 50,
+    limit: 200,
     historical: true,
   });
 
@@ -41,27 +42,35 @@ export const HistoricalAnalysisPage: React.FC = () => {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
+      const tempMap = buildAnomalyMarkerMap(anomaliesData?.items, selectedStationId, 'temperature');
+      const humMap = buildAnomalyMarkerMap(anomaliesData?.items, selectedStationId, 'humidity');
+      const presMap = buildAnomalyMarkerMap(anomaliesData?.items, selectedStationId, 'pressure');
+
       sorted.forEach((obs) => {
+        const epochSec = normalizeTimestampToSeconds(obs.timestamp);
         temp.push({
           timestamp: obs.timestamp,
           raw: obs.temperature,
           imputed: null,
+          anomaly: epochSec !== null ? tempMap.get(epochSec) || null : null,
         });
         hum.push({
           timestamp: obs.timestamp,
           raw: obs.humidity,
           imputed: null,
+          anomaly: epochSec !== null ? humMap.get(epochSec) || null : null,
         });
         pres.push({
           timestamp: obs.timestamp,
           raw: obs.pressure,
           imputed: null,
+          anomaly: epochSec !== null ? presMap.get(epochSec) || null : null,
         });
       });
     }
 
     return { tempData: temp, humData: hum, presData: pres };
-  }, [historyData]);
+  }, [historyData, anomaliesData, selectedStationId]);
 
   const anomalyColumns: ColumnDef<AnomalyEventRecord>[] = [
     {
@@ -205,6 +214,7 @@ export const HistoricalAnalysisPage: React.FC = () => {
           title={`${selectedStationId || 'Station'} (${currentStation?.name || 'AWS'}) — Temperature Sequence`}
           unit="°C"
           data={tempData}
+          parameter="temperature"
           color="#38BDF8"
           syncId="history-sync"
           height={240}
@@ -216,6 +226,7 @@ export const HistoricalAnalysisPage: React.FC = () => {
             title="Relative Humidity Sequence"
             unit="%"
             data={humData}
+            parameter="humidity"
             color="#34D399"
             syncId="history-sync"
             height={180}
@@ -226,6 +237,7 @@ export const HistoricalAnalysisPage: React.FC = () => {
             title="Barometric Pressure Sequence"
             unit="hPa"
             data={presData}
+            parameter="pressure"
             color="#818CF8"
             syncId="history-sync"
             height={180}

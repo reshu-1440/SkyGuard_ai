@@ -905,7 +905,7 @@ class DatabaseRepository:
                         rec = AnomalyEventRecord(
                             event_id=r.event_id,
                             station_id=r.station_id,
-                            timestamp=r.timestamp.astimezone(timezone.utc).isoformat(),
+                            timestamp=ensure_utc_iso(r.timestamp),
                             decision=HybridDecisionType(r.decision) if r.decision in HybridDecisionType.__members__.values() else r.decision,
                             severity=r.severity,
                             reason_codes=r.reason_codes or [],
@@ -1017,7 +1017,7 @@ class DatabaseRepository:
                     return AnomalyEventRecord(
                         event_id=r.event_id,
                         station_id=r.station_id,
-                        timestamp=r.timestamp.astimezone(timezone.utc).isoformat(),
+                        timestamp=ensure_utc_iso(r.timestamp),
                         decision=HybridDecisionType(r.decision) if r.decision in HybridDecisionType.__members__.values() else r.decision,
                         severity=r.severity,
                         reason_codes=r.reason_codes or [],
@@ -1044,7 +1044,7 @@ class DatabaseRepository:
                 if exp_m:
                     return ExplanationSummary(
                         event_id=exp_m.event_id,
-                        timestamp=exp_m.timestamp.astimezone(timezone.utc).isoformat(),
+                        timestamp=ensure_utc_iso(exp_m.timestamp),
                         station_id=exp_m.station_id,
                         summary=exp_m.natural_language_explanation or "",
                         natural_language_explanation=exp_m.natural_language_explanation or "",

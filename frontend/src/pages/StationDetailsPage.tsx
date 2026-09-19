@@ -11,6 +11,8 @@ import { LoadingSkeleton, ErrorState } from '../components/StateFeedback';
 import { formatCoordinates, formatDistance, formatIsoUtc } from '../utils/formatters';
 import { MapPin, ArrowLeft, Clock, Layers } from 'lucide-react';
 
+import { buildAnomalyMarkerMap, normalizeTimestampToSeconds } from '../utils/anomalyMarkers';
+
 export const StationDetailsPage: React.FC = () => {
   const { stationId: rawStationId } = useParams<{ stationId?: string }>();
   const navigate = useNavigate();
@@ -28,9 +30,9 @@ export const StationDetailsPage: React.FC = () => {
   const { data: station, isLoading: isLoadingStation, isError } = useStation(activeStationId);
   const { data: historyData } = useStationHistory(activeStationId, { limit: 120, order: 'desc', historical: false });
   const { data: healthData } = useStationHealth(activeStationId);
-  const { data: anomaliesData } = useAnomalies({ stationId: activeStationId, limit: 5, historical: false });
+  const { data: anomaliesData } = useAnomalies({ stationId: activeStationId, limit: 200, historical: false });
 
-  // Map history to 3 time-series datasets sorted chronologically
+  // Map history to 3 time-series datasets sorted chronologically with exact anomaly overlays
   const { tempData, humData, presData } = useMemo(() => {
     const temp: TimeSeriesPoint[] = [];
     const hum: TimeSeriesPoint[] = [];
@@ -41,27 +43,35 @@ export const StationDetailsPage: React.FC = () => {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
 
+      const tempMap = buildAnomalyMarkerMap(anomaliesData?.items, activeStationId, 'temperature');
+      const humMap = buildAnomalyMarkerMap(anomaliesData?.items, activeStationId, 'humidity');
+      const presMap = buildAnomalyMarkerMap(anomaliesData?.items, activeStationId, 'pressure');
+
       sorted.forEach((obs) => {
+        const epochSec = normalizeTimestampToSeconds(obs.timestamp);
         temp.push({
           timestamp: obs.timestamp,
           raw: obs.temperature,
           imputed: null,
+          anomaly: epochSec !== null ? tempMap.get(epochSec) || null : null,
         });
         hum.push({
           timestamp: obs.timestamp,
           raw: obs.humidity,
           imputed: null,
+          anomaly: epochSec !== null ? humMap.get(epochSec) || null : null,
         });
         pres.push({
           timestamp: obs.timestamp,
           raw: obs.pressure,
           imputed: null,
+          anomaly: epochSec !== null ? presMap.get(epochSec) || null : null,
         });
       });
     }
 
     return { tempData: temp, humData: hum, presData: pres };
-  }, [historyData]);
+  }, [historyData, anomaliesData, activeStationId]);
 
   // Compute nearest neighbor stations geometrically
   const nearestNeighbors = useMemo(() => {
@@ -171,6 +181,7 @@ export const StationDetailsPage: React.FC = () => {
             title="Atmospheric Temperature"
             unit="°C"
             data={tempData}
+            parameter="temperature"
             color="#38BDF8"
             syncId="station-sync"
             height={190}
@@ -181,6 +192,7 @@ export const StationDetailsPage: React.FC = () => {
             title="Relative Humidity"
             unit="%"
             data={humData}
+            parameter="humidity"
             color="#34D399"
             syncId="station-sync"
             height={190}
@@ -191,6 +203,7 @@ export const StationDetailsPage: React.FC = () => {
             title="Barometric Pressure"
             unit="hPa"
             data={presData}
+            parameter="pressure"
             color="#818CF8"
             syncId="station-sync"
             height={190}

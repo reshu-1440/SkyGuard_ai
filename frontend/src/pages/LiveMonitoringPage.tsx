@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStations, useStationHistory } from '../hooks/useStations';
+import { useAnomalies } from '../hooks/useAnomalies';
 import { useRunContext } from '../hooks/useRunContext';
 import { useRealtimeStream } from '../hooks/useRealtimeStream';
 import { MetricTable, ColumnDef } from '../components/MetricTable';
@@ -7,6 +8,7 @@ import { StationStatus } from '../components/StationStatus';
 import { WeatherTrendChart, TimeSeriesPoint } from '../components/WeatherTrendChart';
 import { StationItem } from '../types/api';
 import { formatTemperature, formatHumidity, formatPressure, formatHealthScore, formatAge, formatIsoUtc } from '../utils/formatters';
+import { buildAnomalyMarkerMap, normalizeTimestampToSeconds } from '../utils/anomalyMarkers';
 import { Search, Filter, Radio, Clock, PlayCircle, FileSpreadsheet, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,17 +40,36 @@ export const LiveMonitoringPage: React.FC = () => {
   // Fetch telemetry for sparkline strip for selected station (rolling operational window: latest 60 observations)
   const { data: historyData } = useStationHistory(selectedStationId, { limit: 60, order: 'desc' });
 
+  // Fetch active anomalies strictly scoped to selected station and operational replay cursor (historical: false)
+  const { data: stationAnomalies } = useAnomalies({
+    stationId: selectedStationId,
+    limit: 100,
+    historical: false,
+  });
+
   const sparklineData: TimeSeriesPoint[] = useMemo(() => {
     if (!historyData?.items || historyData.items.length === 0) return [];
     const sorted = [...historyData.items].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
-    return sorted.map((obs) => ({
-      timestamp: obs.timestamp,
-      raw: obs.temperature,
-      imputed: null,
-    }));
-  }, [historyData]);
+
+    const markerMap = buildAnomalyMarkerMap(
+      stationAnomalies?.items,
+      selectedStationId,
+      'temperature'
+    );
+
+    return sorted.map((obs) => {
+      const epochSec = normalizeTimestampToSeconds(obs.timestamp);
+      const matchedMarker = epochSec !== null ? markerMap.get(epochSec) || null : null;
+      return {
+        timestamp: obs.timestamp,
+        raw: obs.temperature,
+        imputed: null,
+        anomaly: matchedMarker,
+      };
+    });
+  }, [historyData, stationAnomalies, selectedStationId]);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -287,7 +308,7 @@ export const LiveMonitoringPage: React.FC = () => {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-mono text-slate-300 font-semibold uppercase">
-                Station Micro-Trend (3-Hour Cadence):
+                {`LIVE TELEMETRY — LAST ${sparklineData.length || 60} OBSERVATIONS (${Math.round((activeStation?.sampling_interval_seconds || 300) / 60)}-MIN INTERVAL):`}
               </span>
               <span className="text-[11px] font-mono font-bold text-ops-weather">
                 {selectedStationId} {activeStation?.name ? `(${activeStation.name})` : ''}
@@ -302,9 +323,10 @@ export const LiveMonitoringPage: React.FC = () => {
           </div>
 
           <WeatherTrendChart
-            title={`${selectedStationId} Telemetry Sequence`}
+            title={`${selectedStationId} Temperature Sequence`}
             unit="°C"
             data={sparklineData}
+            parameter="temperature"
             height={130}
             emptyMessage={`No recent telemetry recorded for ${selectedStationId}.`}
           />
