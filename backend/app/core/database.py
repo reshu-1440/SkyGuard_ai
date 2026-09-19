@@ -660,13 +660,22 @@ class DatabaseRepository:
             )
 
         # 1. Check in-memory state bounded by max_dt and source
+        def _match_source(s_val: Optional[str], s_target: Optional[str]) -> bool:
+            if s_target is None:
+                return True
+            if s_val == s_target:
+                return True
+            if s_target in ("SYNTHETIC_VALIDATION", "SIMULATOR") and s_val in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                return True
+            return False
+
         stn_keys = [
             k for k in self.observation_order
             if k.startswith(f"{station_id}::")
             and (max_dt is None or self.observations[k].timestamp.astimezone(timezone.utc) <= max_dt)
-            and (
-                source is None
-                or str(self.observations[k].source.value if hasattr(self.observations[k].source, "value") else self.observations[k].source) == source
+            and _match_source(
+                str(self.observations[k].source.value if hasattr(self.observations[k].source, "value") else self.observations[k].source),
+                source
             )
         ]
         health = self.get_station_health(station_id, run_id=run_id, source=source, max_timestamp=max_dt)
@@ -707,7 +716,10 @@ class DatabaseRepository:
                 if max_dt is not None:
                     query = query.where(WeatherObservationModel.observation_timestamp <= max_dt)
                 if source:
-                    query = query.where(WeatherObservationModel.source == source)
+                    if source in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                        query = query.where(WeatherObservationModel.source.in_(["SYNTHETIC_VALIDATION", "SIMULATOR"]))
+                    else:
+                        query = query.where(WeatherObservationModel.source == source)
                 latest_m = session.execute(
                     query.order_by(desc(WeatherObservationModel.observation_timestamp)).limit(1)
                 ).scalar_one_or_none()

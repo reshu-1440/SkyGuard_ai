@@ -30,24 +30,26 @@ def _get_replay_cursor_cutoff(
     if ctx.mode in (RunMode.SYNTHETIC_REPLAY, RunMode.HISTORICAL_REPLAY):
         if ctx.current_synthetic_time:
             try:
-                return datetime.fromisoformat(ctx.current_synthetic_time).astimezone(timezone.utc)
+                if isinstance(ctx.current_synthetic_time, datetime):
+                    return ctx.current_synthetic_time.astimezone(timezone.utc)
+                return datetime.fromisoformat(str(ctx.current_synthetic_time)).astimezone(timezone.utc)
             except Exception:
                 pass
         if replay.current_index > 0:
             if replay.observations and replay.current_index <= len(replay.observations):
                 return replay.observations[replay.current_index - 1].timestamp.astimezone(timezone.utc)
-        try:
-            from backend.app.api.v1.deps import get_engine
-            engine = get_engine()
-            if engine and engine.state_manager and engine.state_manager.stations:
-                latest_seen = max(
-                    (buf.last_seen_timestamp for buf in engine.state_manager.stations.values() if buf.last_seen_timestamp),
-                    default=None,
-                )
-                if latest_seen:
-                    return latest_seen
-        except Exception:
-            pass
+            try:
+                from backend.app.api.v1.deps import get_engine
+                engine = get_engine()
+                if engine and engine.state_manager and engine.state_manager.stations:
+                    latest_seen = max(
+                        (buf.last_seen_timestamp for buf in engine.state_manager.stations.values() if buf.last_seen_timestamp),
+                        default=None,
+                    )
+                    if latest_seen:
+                        return latest_seen
+            except Exception:
+                pass
         return datetime(1970, 1, 1, tzinfo=timezone.utc)
     return None
 

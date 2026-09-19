@@ -213,7 +213,8 @@ class RunContextManager:
         if not provider_info["configured"]:
             raise ValueError(f"Provider '{source_type}' is not configured (Status: COMING SOON)")
 
-        new_run_id = f"RUN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        import uuid
+        new_run_id = f"RUN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
 
         self.active_context = RunContext(
             run_id=new_run_id,
