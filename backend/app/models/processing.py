@@ -114,7 +114,7 @@ class LiveStationSnapshot(BaseModel):
     latest_pressure_hpa: Optional[float] = None
     latest_decision: str = "NORMAL"
     latest_health_score: Optional[float] = None
-    latest_health_band: str = "HEALTHY"
+    latest_health_band: str = "INSUFFICIENT_HISTORY"
     active_anomaly_count_24h: int = 0
 
 

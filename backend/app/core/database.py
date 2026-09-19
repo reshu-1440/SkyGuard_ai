@@ -125,6 +125,7 @@ class DatabaseRepository:
         try:
             init_db_schema(self.session_manager.engine)
             self._ensure_anomaly_columns()
+            self._ensure_health_columns()
             self._sync_topology_stations()
             self.persistence_degraded = False
             logger.info("Database schema initialized and stations synchronized.")
@@ -148,6 +149,23 @@ class DatabaseRepository:
                 conn.commit()
         except Exception as e:
             logger.debug("Column verification/alter for anomaly_events: %s", e)
+
+    def _ensure_health_columns(self) -> None:
+        """Safely ensure run_id and source columns exist on sensor_health_snapshots table."""
+        try:
+            with self.session_manager.engine.connect() as conn:
+                from sqlalchemy import text
+                res = conn.execute(text("PRAGMA table_info(sensor_health_snapshots);"))
+                existing_cols = {row[1] for row in res.fetchall()}
+                if "run_id" not in existing_cols:
+                    conn.execute(text("ALTER TABLE sensor_health_snapshots ADD COLUMN run_id VARCHAR(64);"))
+                    logger.info("Added 'run_id' column to sensor_health_snapshots table.")
+                if "source" not in existing_cols:
+                    conn.execute(text("ALTER TABLE sensor_health_snapshots ADD COLUMN source VARCHAR(64);"))
+                    logger.info("Added 'source' column to sensor_health_snapshots table.")
+                conn.commit()
+        except Exception as e:
+            logger.debug("Column verification/alter for sensor_health_snapshots: %s", e)
 
     def _sync_topology_stations(self) -> None:
         """Sync stations from spatial network topology into database."""
@@ -375,12 +393,23 @@ class DatabaseRepository:
             self.persistence_degraded = True
             logger.warning("Anomaly event DB write failed: %s", str(e))
 
-    def save_health_snapshot(self, health: SensorHealthSummary) -> None:
-        """Persist periodic sensor health evaluation snapshot."""
+    def save_health_snapshot(
+        self,
+        health: SensorHealthSummary,
+        timestamp: Optional[datetime] = None,
+        run_id: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> None:
+        """Persist periodic sensor health evaluation snapshot with run and source provenance."""
+        if run_id and not getattr(health, "run_id", None):
+            health.run_id = run_id
+        if source and not getattr(health, "source_type", None):
+            health.source_type = source
+
         self.latest_health_by_station[health.station_id] = health
         self.health_history.append(health)
 
-        h_ts_raw = getattr(health, "timestamp", None) or (health.audit_metadata.generated_at if hasattr(health, "audit_metadata") and health.audit_metadata else None) or datetime.now(timezone.utc)
+        h_ts_raw = timestamp or getattr(health, "timestamp", None) or (health.audit_metadata.generated_at if hasattr(health, "audit_metadata") and health.audit_metadata else None) or datetime.now(timezone.utc)
         h_ts = pd.to_datetime(h_ts_raw, utc=True).to_pydatetime()
 
         param_health = {
@@ -392,6 +421,9 @@ class DatabaseRepository:
             if hasattr(health.component_scores, "model_dump")
             else (health.component_scores if isinstance(health.component_scores, dict) else {})
         )
+
+        eff_run_id = run_id or getattr(health, "run_id", None)
+        eff_source = source or getattr(health, "source_type", None)
 
         try:
             with self.session_manager.session() as session:
@@ -406,6 +438,8 @@ class DatabaseRepository:
                     component_scores=comp_scores,
                     active_anomalies_count=getattr(health, "active_anomalies_count", 0) or 0,
                     health_engine_version="health_v1.0.0",
+                    run_id=eff_run_id,
+                    source=eff_source,
                 )
                 session.add(h_model)
             self.persistence_degraded = False
@@ -555,11 +589,12 @@ class DatabaseRepository:
         self,
         max_timestamp: Optional[datetime] = None,
         source: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """List all stations in network topology with latest live telemetry."""
         results: List[Dict[str, Any]] = []
         for s_id, node in self.topology.stations.items():
-            latest = self.get_station_latest(s_id, max_timestamp=max_timestamp, source=source)
+            latest = self.get_station_latest(s_id, max_timestamp=max_timestamp, source=source, run_id=run_id)
             results.append({
                 "station_id": s_id,
                 "name": node.name,
@@ -578,12 +613,13 @@ class DatabaseRepository:
         station_id: str,
         max_timestamp: Optional[datetime] = None,
         source: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Get single station metadata and latest status."""
         node = self.topology.stations.get(station_id)
         if not node:
             return None
-        latest = self.get_station_latest(station_id, max_timestamp=max_timestamp, source=source)
+        latest = self.get_station_latest(station_id, max_timestamp=max_timestamp, source=source, run_id=run_id)
         return {
             "station_id": station_id,
             "name": node.name,
@@ -601,8 +637,9 @@ class DatabaseRepository:
         station_id: str,
         max_timestamp: Optional[datetime] = None,
         source: Optional[str] = None,
+        run_id: Optional[str] = None,
     ) -> Optional[LiveStationSnapshot]:
-        """Fetch real-time snapshot for a given station from cache or DB bounded by optional max_timestamp and source."""
+        """Fetch real-time snapshot for a given station from cache or DB bounded by optional max_timestamp, source, and run_id."""
         node = self.topology.stations.get(station_id)
         name = node.name if node else f"Station {station_id}"
         lat = node.latitude if node else 0.0
@@ -619,6 +656,7 @@ class DatabaseRepository:
                 latitude=lat,
                 longitude=lon,
                 elevation_m=elev,
+                latest_health_band="INSUFFICIENT_HISTORY",
             )
 
         # 1. Check in-memory state bounded by max_dt and source
@@ -631,7 +669,7 @@ class DatabaseRepository:
                 or str(self.observations[k].source.value if hasattr(self.observations[k].source, "value") else self.observations[k].source) == source
             )
         ]
-        health = self.get_station_health(station_id)
+        health = self.get_station_health(station_id, run_id=run_id, source=source, max_timestamp=max_dt)
 
         # Count active anomalies in last 24h up to max_dt
         ref_time = max_dt or datetime.now(timezone.utc)
@@ -645,7 +683,7 @@ class DatabaseRepository:
         if stn_keys:
             latest_obs = self.observations[stn_keys[-1]]
             h_score = health.overall_health_score if (health and health.overall_health_score is not None) else None
-            h_band = health.status_band.value if (health and hasattr(health.status_band, "value")) else (str(health.status_band) if health else "HEALTHY")
+            h_band = health.status_band.value if (health and health.overall_health_score is not None and hasattr(health.status_band, "value")) else (str(health.status_band) if (health and health.overall_health_score is not None) else "INSUFFICIENT_HISTORY")
             return LiveStationSnapshot(
                 station_id=station_id,
                 station_name=name,
@@ -676,7 +714,7 @@ class DatabaseRepository:
 
                 if latest_m:
                     h_score = health.overall_health_score if (health and health.overall_health_score is not None) else None
-                    h_band = health.status_band.value if (health and hasattr(health.status_band, "value")) else (str(health.status_band) if health else "HEALTHY")
+                    h_band = health.status_band.value if (health and health.overall_health_score is not None and hasattr(health.status_band, "value")) else (str(health.status_band) if (health and health.overall_health_score is not None) else "INSUFFICIENT_HISTORY")
                     return LiveStationSnapshot(
                         station_id=station_id,
                         station_name=name,
@@ -701,6 +739,7 @@ class DatabaseRepository:
             latitude=lat,
             longitude=lon,
             elevation_m=elev,
+            latest_health_band="INSUFFICIENT_HISTORY",
         )
 
     def get_station_history(
@@ -803,18 +842,95 @@ class DatabaseRepository:
         paginated = records_mem[off : off + lim]
         return paginated, total_count
 
-    def get_station_health(self, station_id: str) -> Optional[SensorHealthSummary]:
-        """Fetch latest SensorHealthSummary for a station from memory or database."""
-        if station_id in self.latest_health_by_station:
-            return self.latest_health_by_station[station_id]
+    def get_station_health(
+        self,
+        station_id: str,
+        run_id: Optional[str] = None,
+        source: Optional[str] = None,
+        max_timestamp: Optional[datetime] = None,
+    ) -> Optional[SensorHealthSummary]:
+        """Fetch latest SensorHealthSummary for a station respecting run, source, and cursor constraints."""
+        max_dt = ensure_utc(max_timestamp) if max_timestamp else None
 
+        # 0. If before replay start or uninitialized zero-point
+        if max_dt is not None and max_dt.year <= 1970:
+            return SensorHealthSummary(
+                station_id=station_id,
+                run_id=run_id,
+                source_type=source,
+                status_band=HealthStatusBand.INSUFFICIENT_HISTORY,
+                trend=HealthTrend.INSUFFICIENT_HISTORY,
+                observation_count=0,
+                required_observation_count=12,
+                overall_health_score=None,
+                component_scores=ComponentHealthScores(
+                    anomaly_health=100.0,
+                    data_quality_health=100.0,
+                    communication_health=100.0,
+                    temporal_stability_health=100.0,
+                    spatial_consistency_health=100.0,
+                ),
+                maintenance_recommendation=MaintenanceRecommendation.MONITOR,
+                reason_codes=[HealthReasonCode.INSUFFICIENT_OBSERVATION_HISTORY],
+                summary="Insufficient observation history (0 observed < 12 required) to calculate a statistically sound health index. Telemetry under initial observation.",
+                supporting_evidence=["Observed count: 0, Minimum required: 12"],
+                recommended_action="Continue collecting observations. Reliability evaluation will activate once minimum history is reached.",
+                audit_metadata=HealthAuditMetadata(
+                    window_name="24h",
+                    window_hours=24.0,
+                    min_observations_required=12,
+                    total_observations_evaluated=0,
+                    generated_at=datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+        # 1. Search in-memory health history (reverse chronological)
+        source_str = str(source.value if hasattr(source, "value") else source) if source else None
+        for h in reversed(self.health_history):
+            if h.station_id != station_id:
+                continue
+            if run_id and h.run_id and h.run_id != run_id:
+                continue
+            if source_str:
+                h_src = str(h.source_type.value if hasattr(h.source_type, "value") else h.source_type) if h.source_type else None
+                if source_str in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                    if h_src and h_src not in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                        continue
+                elif h_src and h_src != source_str:
+                    continue
+            if max_dt:
+                h_time_raw = getattr(h, "timestamp", None) or h.replay_cursor_time or h.evaluation_window_end or (h.audit_metadata.generated_at if h.audit_metadata else None)
+                if h_time_raw:
+                    try:
+                        h_time = pd.to_datetime(h_time_raw, utc=True).to_pydatetime()
+                        if h_time > max_dt:
+                            continue
+                    except Exception:
+                        pass
+            return h
+
+        # Fallback to latest_health_by_station if no max_dt filter is active and station matches
+        if max_dt is None and station_id in self.latest_health_by_station:
+            h = self.latest_health_by_station[station_id]
+            if not run_id or not h.run_id or h.run_id == run_id:
+                return h
+
+        # 2. Query persistent database
         try:
             with self.session_manager.session() as session:
+                query = select(SensorHealthSnapshotModel).where(SensorHealthSnapshotModel.station_id == station_id)
+                if run_id:
+                    query = query.where(SensorHealthSnapshotModel.run_id == run_id)
+                if source_str:
+                    if source_str in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                        query = query.where(SensorHealthSnapshotModel.source.in_(["SYNTHETIC_VALIDATION", "SIMULATOR"]))
+                    else:
+                        query = query.where(SensorHealthSnapshotModel.source == source_str)
+                if max_dt:
+                    query = query.where(SensorHealthSnapshotModel.timestamp <= max_dt)
+
                 h_model = session.execute(
-                    select(SensorHealthSnapshotModel)
-                    .where(SensorHealthSnapshotModel.station_id == station_id)
-                    .order_by(desc(SensorHealthSnapshotModel.timestamp))
-                    .limit(1)
+                    query.order_by(desc(SensorHealthSnapshotModel.timestamp)).limit(1)
                 ).scalar_one_or_none()
 
                 if h_model:
@@ -825,6 +941,8 @@ class DatabaseRepository:
                     }
                     summary = SensorHealthSummary(
                         station_id=h_model.station_id,
+                        run_id=h_model.run_id,
+                        source_type=h_model.source,
                         overall_health_score=h_model.overall_health_score,
                         status_band=HealthStatusBand(h_model.status_band),
                         trend=HealthTrend(h_model.trend),
@@ -841,7 +959,45 @@ class DatabaseRepository:
         except Exception as e:
             logger.debug("DB query for station health failed: %s", str(e))
 
-        return None
+        # 3. If no precalculated snapshot, check count of actual observations in window
+        obs_records, total_obs = self.get_station_history(
+            station_id=station_id,
+            end_time=max_dt,
+            source=source_str,
+            limit=360,
+        )
+
+        return SensorHealthSummary(
+            station_id=station_id,
+            run_id=run_id,
+            source_type=source,
+            observation_count=total_obs,
+            required_observation_count=12,
+            overall_health_score=None,
+            status_band=HealthStatusBand.INSUFFICIENT_HISTORY,
+            trend=HealthTrend.INSUFFICIENT_HISTORY,
+            health_delta=None,
+            component_scores=ComponentHealthScores(
+                anomaly_health=100.0,
+                data_quality_health=100.0,
+                communication_health=100.0,
+                temporal_stability_health=100.0,
+                spatial_consistency_health=100.0,
+            ),
+            parameter_health={},
+            maintenance_recommendation=MaintenanceRecommendation.MONITOR,
+            reason_codes=[HealthReasonCode.INSUFFICIENT_OBSERVATION_HISTORY],
+            summary=f"Insufficient observation history ({total_obs} observed < 12 required) to calculate a statistically sound health index. Telemetry under initial observation.",
+            supporting_evidence=[f"Observed count: {total_obs}, Minimum required: 12"],
+            recommended_action="Continue collecting observations. Reliability evaluation will activate once minimum history is reached.",
+            audit_metadata=HealthAuditMetadata(
+                window_name="24h",
+                window_hours=24.0,
+                min_observations_required=12,
+                total_observations_evaluated=total_obs,
+                generated_at=datetime.now(timezone.utc).isoformat(),
+            ),
+        )
 
     def get_anomalies(
         self,

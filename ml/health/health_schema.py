@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class HealthStatusBand(str, Enum):
@@ -117,3 +117,32 @@ class SensorHealthSummary(BaseModel):
     
     # Traceability
     audit_metadata: HealthAuditMetadata = Field(..., description="Provenance metadata for auditing.")
+
+    # Active runtime traceability & explicit contract fields
+    run_id: Optional[str] = Field(None, description="Active execution run context ID.")
+    source_type: Optional[str] = Field(None, description="Canonical source provider type.")
+    observation_count: Optional[int] = Field(None, description="Count of observations evaluated in active run window.")
+    required_observation_count: int = Field(12, description="Minimum observation threshold for health calculation.")
+    evaluation_window_start: Optional[str] = Field(None, description="ISO timestamp of earliest observation in window.")
+    evaluation_window_end: Optional[str] = Field(None, description="ISO timestamp of latest observation in window.")
+    replay_cursor_time: Optional[str] = Field(None, description="ISO timestamp of current replay cursor cutoff.")
+    health_index: Optional[float] = Field(None, description="Alias for overall_health_score.")
+    status: Optional[str] = Field(None, description="Alias for status_band string.")
+
+    @model_validator(mode="after")
+    def _sync_contract_aliases(self) -> "SensorHealthSummary":
+        updates = {}
+        if self.health_index is None and self.overall_health_score is not None:
+            updates["health_index"] = self.overall_health_score
+        if self.status is None and self.status_band is not None:
+            updates["status"] = self.status_band.value if hasattr(self.status_band, "value") else str(self.status_band)
+        if self.observation_count is None and self.audit_metadata is not None:
+            updates["observation_count"] = self.audit_metadata.total_observations_evaluated
+        if self.required_observation_count == 12 and self.audit_metadata is not None:
+            updates["required_observation_count"] = self.audit_metadata.min_observations_required
+
+        if updates:
+            # model_config frozen=True requires object.__setattr__
+            for k, v in updates.items():
+                object.__setattr__(self, k, v)
+        return self

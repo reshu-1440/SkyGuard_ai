@@ -18,14 +18,20 @@ from ml.health.health_schema import SensorHealthSummary
 class StationStateBuffer:
     """Bounded, thread-safe temporal state ring buffer for an individual AWS station."""
 
-    def __init__(self, station_id: str, max_retention: int = 120) -> None:
+    def __init__(
+        self,
+        station_id: str,
+        max_retention: int = 360,
+        run_id: Optional[str] = None,
+    ) -> None:
         self.station_id = station_id
         self.max_retention = max_retention
+        self.run_id = run_id
         
-        # Chronologically ordered observation ring buffer
+        # Chronologically ordered observation ring buffer (holds up to 360 observations, covering 24h at 5-min cadence)
         self.observations: Deque[WeatherObservation] = deque(maxlen=max_retention)
         self.decisions: Deque[HybridDecision] = deque(maxlen=max_retention)
-        self.health_history: Deque[SensorHealthSummary] = deque(maxlen=24)
+        self.health_history: Deque[SensorHealthSummary] = deque(maxlen=72)
         
         # Set of seen observation identity keys for fast idempotency & duplicate checks
         self.seen_identity_keys: Set[str] = set()
@@ -35,7 +41,8 @@ class StationStateBuffer:
         """Generate unique idempotent identity string for an incoming packet."""
         src = obs.source if hasattr(obs.source, "value") else str(obs.source)
         t_str = obs.timestamp.astimezone(timezone.utc).isoformat()
-        return f"{self.station_id}::{t_str}::{src}"
+        run_id = obs.run_id or ""
+        return f"{self.station_id}::{t_str}::{src}::{run_id}"
 
     def check_temporal_ordering(
         self,
@@ -101,14 +108,16 @@ class StationStateManager:
         self.max_station_retention = max_station_retention
         self.stations: Dict[str, StationStateBuffer] = {}
 
-    def get_or_create_buffer(self, station_id: str) -> StationStateBuffer:
+    def get_or_create_buffer(self, station_id: str, run_id: Optional[str] = None) -> StationStateBuffer:
         """Get existing station buffer or create an isolated new buffer."""
-        if station_id not in self.stations:
-            self.stations[station_id] = StationStateBuffer(
+        key = f"{station_id}::{run_id}" if run_id else station_id
+        if key not in self.stations:
+            self.stations[key] = StationStateBuffer(
                 station_id=station_id,
                 max_retention=self.max_station_retention,
+                run_id=run_id,
             )
-        return self.stations[station_id]
+        return self.stations[key]
 
     def get_contemporaneous_neighbor_pool(
         self,

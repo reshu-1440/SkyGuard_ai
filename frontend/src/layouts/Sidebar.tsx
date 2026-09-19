@@ -45,14 +45,20 @@ export const Sidebar: React.FC = () => {
   const defaultStationId = stations.length > 0 ? stations[0].station_id : '';
   const activeStationId = routeStationId || defaultStationId;
 
-  // Sort stations by health score ascending (most degraded first)
+  // Sort stations: stations with valid health scores first (ascending/most degraded first), followed by insufficient history stations sorted by station_id
   const sortedStations = [...stations].sort((a, b) => {
-    const healthA = a.latest_snapshot?.latest_health_score ?? 100;
-    const healthB = b.latest_snapshot?.latest_health_score ?? 100;
-    return healthA - healthB;
+    const healthA = a.latest_snapshot?.latest_health_score ?? null;
+    const healthB = b.latest_snapshot?.latest_health_score ?? null;
+    if (healthA !== null && healthB !== null) {
+      return healthA - healthB;
+    }
+    if (healthA !== null) return -1;
+    if (healthB !== null) return 1;
+    return a.station_id.localeCompare(b.station_id);
   });
 
-  const getStationHealthColor = (score: number) => {
+  const getStationHealthColor = (score: number | null | undefined) => {
+    if (score === null || score === undefined) return { text: '#64748B', bg: '#475569' };
     if (score < 60) return { text: '#EF4444', bg: '#EF4444' };
     if (score < 85) return { text: '#F59E0B', bg: '#F59E0B' };
     return { text: '#10B981', bg: '#10B981' };
@@ -144,7 +150,7 @@ export const Sidebar: React.FC = () => {
 
             <div className="space-y-px max-h-52 overflow-y-auto">
               {sortedStations.map((stn) => {
-                const score = stn.latest_snapshot?.latest_health_score ?? 100;
+                const score = stn.latest_snapshot?.latest_health_score ?? null;
                 const anomCount = stn.latest_snapshot?.active_anomaly_count_24h ?? 0;
                 const isSelected = activeStationId === stn.station_id && location.pathname.startsWith('/stations');
                 const { text: scoreColor, bg: dotColor } = getStationHealthColor(score);
@@ -174,7 +180,7 @@ export const Sidebar: React.FC = () => {
                     }}
                   >
                     <div className="flex items-center gap-1.5 truncate">
-                      {/* Status dot — color communicates health tier, no animation */}
+                      {/* Status dot — color communicates health tier, neutral for insufficient history */}
                       <span
                         className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         style={{ background: dotColor }}
@@ -196,7 +202,7 @@ export const Sidebar: React.FC = () => {
                       )}
                     </div>
                     <span className="font-semibold flex-shrink-0 ml-1" style={{ color: scoreColor }}>
-                      {Math.round(score)}
+                      {score !== null ? Math.round(score) : '—'}
                     </span>
                   </button>
                 );

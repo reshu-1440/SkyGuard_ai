@@ -13,7 +13,7 @@ from backend.app.core.state import RunContextManager
 from backend.app.models.observation import WeatherObservation
 from backend.app.models.processing import LiveStationSnapshot, PaginatedResponse, PaginationMeta
 from backend.app.models.run_context import RunContext, RunMode
-from ml.health.health_schema import SensorHealthSummary
+from ml.health.health_schema import ComponentHealthScores, HealthStatusBand, SensorHealthSummary
 
 router = APIRouter(prefix="/stations", tags=["Stations"])
 
@@ -68,7 +68,8 @@ async def list_stations(
 
     ctx = ctx_mgr.get_context()
     max_ts = _get_replay_cursor_cutoff(ctx, replay, historical=False, repo=repo)
-    return repo.get_stations(max_timestamp=max_ts)
+    eff_source = ctx.source_type.value if hasattr(ctx.source_type, "value") else str(ctx.source_type)
+    return repo.get_stations(max_timestamp=max_ts, source=eff_source, run_id=ctx.run_id)
 
 
 @router.get("/{station_id}", response_model=Dict[str, Any])
@@ -88,7 +89,8 @@ async def get_station(
 
     ctx = ctx_mgr.get_context()
     max_ts = _get_replay_cursor_cutoff(ctx, replay, historical=False, repo=repo)
-    stn = repo.get_station_by_id(station_id, max_timestamp=max_ts)
+    eff_source = ctx.source_type.value if hasattr(ctx.source_type, "value") else str(ctx.source_type)
+    stn = repo.get_station_by_id(station_id, max_timestamp=max_ts, source=eff_source, run_id=ctx.run_id)
     if not stn:
         raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found.")
     return stn
@@ -111,7 +113,8 @@ async def get_station_latest(
 
     ctx = ctx_mgr.get_context()
     max_ts = _get_replay_cursor_cutoff(ctx, replay, historical=False, repo=repo)
-    snapshot = repo.get_station_latest(station_id, max_timestamp=max_ts)
+    eff_source = ctx.source_type.value if hasattr(ctx.source_type, "value") else str(ctx.source_type)
+    snapshot = repo.get_station_latest(station_id, max_timestamp=max_ts, source=eff_source, run_id=ctx.run_id)
     if not snapshot:
         raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found.")
     return snapshot
@@ -215,11 +218,36 @@ async def get_station_health(
     if not isinstance(replay, StreamReplayEngine):
         replay = get_replay_engine()
 
+    if station_id not in repo.topology.stations:
+        raise HTTPException(status_code=404, detail=f"Station '{station_id}' not found.")
+
     ctx = ctx_mgr.get_context()
     cutoff = _get_replay_cursor_cutoff(ctx, replay, historical=False, repo=repo)
-    if cutoff is not None and cutoff.year <= 1970:
-        raise HTTPException(status_code=404, detail=f"No health records available for station '{station_id}'.")
-    health = repo.get_station_health(station_id)
+    eff_source = ctx.source_type.value if hasattr(ctx.source_type, "value") else str(ctx.source_type)
+
+    health = repo.get_station_health(
+        station_id=station_id,
+        run_id=ctx.run_id,
+        source=eff_source,
+        max_timestamp=cutoff,
+    )
     if not health:
-        raise HTTPException(status_code=404, detail=f"No health records available for station '{station_id}'.")
+        return SensorHealthSummary(
+            station_id=station_id,
+            run_id=ctx.run_id,
+            source_type=eff_source,
+            status_band=HealthStatusBand.INSUFFICIENT_HISTORY,
+            observation_count=0,
+            required_observation_count=12,
+            overall_health_score=None,
+            component_scores=ComponentHealthScores(
+                anomaly_health=100.0,
+                data_quality_health=100.0,
+                communication_health=100.0,
+                temporal_stability_health=100.0,
+                spatial_consistency_health=100.0,
+            ),
+            summary="Insufficient observation history to calculate a statistically sound health index. Telemetry under initial observation.",
+            recommended_action="Continue collecting observations. Reliability evaluation will activate once minimum history is reached.",
+        )
     return health

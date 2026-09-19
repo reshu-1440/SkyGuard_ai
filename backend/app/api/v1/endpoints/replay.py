@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from backend.app.api.v1.deps import get_engine, get_replay_engine
+from backend.app.api.v1.deps import get_engine, get_replay_engine, get_run_context_manager
 from backend.app.core.engine import RealTimeProcessingEngine
 from backend.app.core.replay import StreamReplayEngine
+from backend.app.core.state import RunContextManager
 
 router = APIRouter(prefix="/replay", tags=["Replay Simulator"])
 
@@ -116,9 +117,10 @@ async def set_replay_speed(
 async def start_replay_simulation(
     replay: StreamReplayEngine = Depends(get_replay_engine),
     engine: RealTimeProcessingEngine = Depends(get_engine),
+    ctx_mgr: RunContextManager = Depends(get_run_context_manager),
 ) -> Dict[str, Any]:
     """Start or resume continuous asynchronous replay stream."""
-    await replay.start(engine=engine)
+    await replay.start(engine=engine, ctx_mgr=ctx_mgr)
     return {
         "status": "RUNNING",
         "is_running": True,

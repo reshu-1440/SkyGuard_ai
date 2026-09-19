@@ -211,11 +211,16 @@ class RealTimeProcessingEngine:
             "joint_standardized_anomaly_magnitude": joint_mag,
         }
 
-    def process_observation(self, observation: WeatherObservation) -> ProcessingResult:
+    def process_observation(
+        self,
+        observation: WeatherObservation,
+        run_id: Optional[str] = None,
+    ) -> ProcessingResult:
         """Process a single WeatherObservation end-to-end through the analytical pipeline.
         
         Args:
             observation: Canonical normalized WeatherObservation.
+            run_id: Optional active run identifier override.
             
         Returns:
             Structured `ProcessingResult` with full provenance, decisions, health, and latency.
@@ -224,7 +229,8 @@ class RealTimeProcessingEngine:
         
         # 1. Ingestion & Temporal Validation
         t_ingest_start = time.perf_counter_ns()
-        station_buffer = self.state_manager.get_or_create_buffer(observation.station_id)
+        obs_run_id = run_id or observation.run_id
+        station_buffer = self.state_manager.get_or_create_buffer(observation.station_id, run_id=obs_run_id)
         ordering_status, ordering_reason = station_buffer.check_temporal_ordering(observation)
         t_ingest_end = time.perf_counter_ns()
 
@@ -388,6 +394,35 @@ class RealTimeProcessingEngine:
             station_id=observation.station_id,
             decisions=past_decisions,
         )
+
+        obs_run_id = run_id or observation.run_id
+        obs_source = observation.source_type or str(observation.source.value if hasattr(observation.source, "value") else observation.source)
+        if not obs_run_id:
+            try:
+                from backend.app.core.deps import get_run_context_manager
+                active_ctx = get_run_context_manager().get_context()
+                obs_run_id = active_ctx.run_id
+                if not obs_source:
+                    obs_source = active_ctx.source_type.value if hasattr(active_ctx.source_type, "value") else str(active_ctx.source_type)
+            except Exception:
+                pass
+
+        all_window_obs = list(station_buffer.observations) + [observation]
+        first_ts = all_window_obs[0].timestamp.astimezone(timezone.utc).isoformat() if all_window_obs else None
+        last_ts = observation.timestamp.astimezone(timezone.utc).isoformat()
+        
+        health_updates = {
+            "run_id": obs_run_id,
+            "source_type": obs_source,
+            "observation_count": len(past_decisions),
+            "required_observation_count": self.health_engine.min_observations,
+            "evaluation_window_start": first_ts,
+            "evaluation_window_end": last_ts,
+            "replay_cursor_time": last_ts,
+            "health_index": health_summary.overall_health_score,
+            "status": health_summary.status_band.value if hasattr(health_summary.status_band, "value") else str(health_summary.status_band),
+        }
+        health_summary = health_summary.model_copy(update=health_updates)
         t_health_end = time.perf_counter_ns()
 
         # 8. Advisory Correction Recommendation
@@ -414,7 +449,12 @@ class RealTimeProcessingEngine:
         station_buffer.append_health_snapshot(health_summary)
 
         self.repository.save_observation(observation)
-        self.repository.save_health_snapshot(health_summary)
+        self.repository.save_health_snapshot(
+            health_summary,
+            timestamp=observation.timestamp.astimezone(timezone.utc),
+            run_id=obs_run_id,
+            source=obs_source,
+        )
         if corr_rec is not None:
             self.repository.save_correction(corr_rec)
 

@@ -210,6 +210,8 @@ class SensorHealthSnapshotModel(Base):
     component_scores: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     active_anomalies_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     health_engine_version: Mapped[str] = mapped_column(String(64), default="v1.0.0", nullable=False)
+    run_id: Mapped[Optional[str]] = mapped_column(String(64), index=True, nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(String(64), index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     __table_args__ = (
