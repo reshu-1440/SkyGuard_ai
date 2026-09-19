@@ -134,7 +134,7 @@ export const LiveMonitoringPage: React.FC = () => {
     },
     {
       key: 'anomalies_24h',
-      header: '24h Flags',
+      header: 'Active Flags (24h)',
       align: 'center',
       render: (stn) => {
         const c = stn.latest_snapshot?.active_anomaly_count_24h ?? 0;

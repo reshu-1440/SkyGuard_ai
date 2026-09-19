@@ -79,6 +79,7 @@ export const NetworkOverviewPage: React.FC = () => {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('flagship_narrative');
 
   const activeAnomalies = anomalyData?.items || [];
+  const currentRunAnomalies = anomalyData?.pagination?.total_count ?? 0;
   const totalStations = stations.length;
   const activeStations = stations.filter(
     (s) => (s.latest_snapshot?.status || s.status) === 'ACTIVE'
@@ -445,16 +446,16 @@ export const NetworkOverviewPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Active Anomalies */}
+          {/* Current Run Anomalies */}
           <div className="flex items-center gap-2.5">
             <AlertTriangle
-              className={`w-4 h-4 flex-shrink-0 ${activeAnomalies.length > 0 ? 'text-red-400' : ''}`}
-              style={{ color: activeAnomalies.length > 0 ? '#EF4444' : '#2A3E60' }}
+              className={`w-4 h-4 flex-shrink-0 ${currentRunAnomalies > 0 ? 'text-red-400' : ''}`}
+              style={{ color: currentRunAnomalies > 0 ? '#EF4444' : '#2A3E60' }}
             />
             <div>
-              <span className="kpi-label block">Active Anomalies</span>
-              <span className="kpi-value" style={{ fontSize: '22px', color: activeAnomalies.length > 0 ? '#EF4444' : '#E8EEF7' }}>
-                {activeAnomalies.length}
+              <span className="kpi-label block" title="Anomalies detected in active run up to replay cursor">Current Run Anomalies</span>
+              <span className="kpi-value" style={{ fontSize: '22px', color: currentRunAnomalies > 0 ? '#EF4444' : '#E8EEF7' }}>
+                {currentRunAnomalies}
               </span>
             </div>
           </div>

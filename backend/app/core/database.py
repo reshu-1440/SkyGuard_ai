@@ -124,12 +124,30 @@ class DatabaseRepository:
         """Initialize database schema via SQLAlchemy metadata or migrations."""
         try:
             init_db_schema(self.session_manager.engine)
+            self._ensure_anomaly_columns()
             self._sync_topology_stations()
             self.persistence_degraded = False
             logger.info("Database schema initialized and stations synchronized.")
         except Exception as e:
             self.persistence_degraded = True
             logger.error("Failed to initialize database schema: %s", str(e), exc_info=True)
+
+    def _ensure_anomaly_columns(self) -> None:
+        """Safely ensure run_id and source columns exist on anomaly_events table."""
+        try:
+            with self.session_manager.engine.connect() as conn:
+                from sqlalchemy import text
+                res = conn.execute(text("PRAGMA table_info(anomaly_events);"))
+                existing_cols = {row[1] for row in res.fetchall()}
+                if "run_id" not in existing_cols:
+                    conn.execute(text("ALTER TABLE anomaly_events ADD COLUMN run_id VARCHAR(64);"))
+                    logger.info("Added 'run_id' column to anomaly_events table.")
+                if "source" not in existing_cols:
+                    conn.execute(text("ALTER TABLE anomaly_events ADD COLUMN source VARCHAR(64);"))
+                    logger.info("Added 'source' column to anomaly_events table.")
+                conn.commit()
+        except Exception as e:
+            logger.debug("Column verification/alter for anomaly_events: %s", e)
 
     def _sync_topology_stations(self) -> None:
         """Sync stations from spatial network topology into database."""
@@ -260,6 +278,14 @@ class DatabaseRepository:
         provenance: Optional[Dict[str, str]] = None,
     ) -> None:
         """Persist detected anomaly event and optional explainability package."""
+        prov = provenance or {}
+        run_id_val = prov.get("run_id") or getattr(event, "run_id", None)
+        source_val = prov.get("source_type") or getattr(event, "source", None)
+
+        # Ensure event instance has run_id and source assigned
+        if (not getattr(event, "run_id", None) and run_id_val) or (not getattr(event, "source", None) and source_val):
+            event = event.model_copy(update={"run_id": run_id_val, "source": source_val})
+
         if event.event_id not in self.anomaly_events:
             self.anomaly_events[event.event_id] = event
             self.anomaly_order.append(event.event_id)
@@ -267,7 +293,6 @@ class DatabaseRepository:
         if explanation is not None:
             self.explanations[event.event_id] = explanation
 
-        prov = provenance or {}
         ev_ts = pd.to_datetime(event.timestamp, utc=True).to_pydatetime()
 
         try:
@@ -291,6 +316,8 @@ class DatabaseRepository:
                         model_version=prov.get("model_version"),
                         feature_version=prov.get("feature_version", "v1.0.0"),
                         decision_engine_version=prov.get("decision_engine_version", "hybrid_v1.0.0"),
+                        run_id=run_id_val,
+                        source=source_val,
                     )
                     session.add(anom_model)
 
@@ -825,13 +852,20 @@ class DatabaseRepository:
         end_time: Optional[datetime] = None,
         limit: int = 50,
         offset: int = 0,
+        run_id: Optional[str] = None,
+        source: Optional[str] = None,
+        active_only: bool = False,
     ) -> Tuple[List[AnomalyEventRecord], int]:
-        """Query anomalies with multi-field filtering and pagination."""
+        """Query anomalies with multi-field filtering, run-id scoping, and pagination."""
         stn_filter = station_id.strip() if isinstance(station_id, str) and station_id.strip() else None
         dec_filter = decision.strip() if isinstance(decision, str) and decision.strip() else None
         sev_filter = severity.strip().upper() if isinstance(severity, str) and severity.strip() else None
         start_dt = start_time.astimezone(timezone.utc) if isinstance(start_time, datetime) else None
         end_dt = end_time.astimezone(timezone.utc) if isinstance(end_time, datetime) else None
+        run_filter = run_id.strip() if isinstance(run_id, str) and run_id.strip() else None
+        source_filter = source.strip() if isinstance(source, str) and source.strip() else None
+        if source_filter and hasattr(source_filter, "value"):
+            source_filter = source_filter.value
         lim = limit if isinstance(limit, int) else 50
         off = offset if isinstance(offset, int) else 0
 
@@ -839,6 +873,15 @@ class DatabaseRepository:
         try:
             with self.session_manager.session() as session:
                 query = select(AnomalyEventModel)
+                if run_filter:
+                    query = query.where(AnomalyEventModel.run_id == run_filter)
+                if source_filter:
+                    if source_filter in ("SYNTHETIC_VALIDATION", "SIMULATOR"):
+                        query = query.where(AnomalyEventModel.source.in_(["SYNTHETIC_VALIDATION", "SIMULATOR"]))
+                    else:
+                        query = query.where(AnomalyEventModel.source == source_filter)
+                if active_only:
+                    query = query.where(AnomalyEventModel.is_resolved == False)
                 if stn_filter:
                     query = query.where(AnomalyEventModel.station_id == stn_filter)
                 if dec_filter:
@@ -869,6 +912,8 @@ class DatabaseRepository:
                             observed_values=r.observed_values or {},
                             recommended_values=r.recommended_values or {},
                             explanation_summary=r.explanation_summary,
+                            run_id=r.run_id,
+                            source=r.source,
                         )
                         records.append(rec)
                     return records, total_count
@@ -879,6 +924,10 @@ class DatabaseRepository:
         matched: List[AnomalyEventRecord] = []
         for ev_id in reversed(self.anomaly_order):
             ev = self.anomaly_events[ev_id]
+            if run_filter and ev.run_id and ev.run_id != run_filter:
+                continue
+            if source_filter and ev.source and ev.source != source_filter:
+                continue
             if stn_filter and ev.station_id != stn_filter:
                 continue
             if dec_filter and ev.decision.value != dec_filter and ev.decision != dec_filter:
@@ -897,6 +946,61 @@ class DatabaseRepository:
         total_count = len(matched)
         paginated = matched[off : off + lim]
         return paginated, total_count
+
+    def get_persisted_anomaly_count(self) -> int:
+        """Return total cumulative count of persisted anomaly events across the database."""
+        try:
+            with self.session_manager.session() as session:
+                q = select(func.count()).select_from(AnomalyEventModel)
+                return session.execute(q).scalar_one()
+        except Exception:
+            return len(self.anomaly_events)
+
+    def get_anomaly_stats(
+        self,
+        ctx: Any,
+        replay: Any,
+    ) -> Any:
+        """Compute aggregated anomaly metrics separating active run, 24h operational window, and database persistence."""
+        from backend.app.models.processing import AnomalyStatsSummary
+        from backend.app.api.v1.endpoints.stations import _get_replay_cursor_cutoff
+
+        cutoff = _get_replay_cursor_cutoff(ctx, replay, historical=False, repo=self)
+        run_id = ctx.run_id or "RUN-DEFAULT-001"
+        source_type = ctx.source_type.value if hasattr(ctx.source_type, "value") else str(ctx.source_type)
+
+        if cutoff is not None and cutoff.year <= 1970:
+            current_run_count = 0
+            active_24h_count = 0
+            cursor_time = None
+        else:
+            _, current_run_count = self.get_anomalies(
+                run_id=run_id,
+                source=source_type,
+                end_time=cutoff,
+                limit=1,
+            )
+            ref_time = cutoff or datetime.now(timezone.utc)
+            cutoff_24h = ref_time - pd.Timedelta(hours=24)
+            _, active_24h_count = self.get_anomalies(
+                run_id=run_id,
+                source=source_type,
+                start_time=cutoff_24h,
+                end_time=ref_time,
+                limit=1,
+            )
+            cursor_time = cutoff.isoformat() if cutoff else None
+
+        total_persisted = self.get_persisted_anomaly_count()
+
+        return AnomalyStatsSummary(
+            current_run_anomalies=current_run_count,
+            active_anomalies_24h=active_24h_count,
+            total_persisted_anomalies=total_persisted,
+            active_run_id=run_id,
+            replay_cursor_time=cursor_time,
+            source_type=source_type,
+        )
 
     def get_anomaly_by_id(self, event_id: str) -> Optional[AnomalyEventRecord]:
         """Get single anomaly event record by unique event ID."""

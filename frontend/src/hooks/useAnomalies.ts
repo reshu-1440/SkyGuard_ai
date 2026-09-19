@@ -3,6 +3,7 @@ import {
   fetchAnomalies,
   fetchAnomalyDetail,
   fetchAnomalyExplanation,
+  fetchAnomalyStats,
 } from '../api/anomalies';
 
 export function useAnomalies(params?: {
@@ -14,11 +15,21 @@ export function useAnomalies(params?: {
   limit?: number;
   offset?: number;
   historical?: boolean;
+  runId?: string;
+  source?: string;
 }) {
   return useQuery({
     queryKey: ['anomalies', params],
     queryFn: () => fetchAnomalies(params),
-    refetchInterval: 5000,
+    refetchInterval: 3000,
+  });
+}
+
+export function useAnomalyStats() {
+  return useQuery({
+    queryKey: ['anomalies', 'stats'],
+    queryFn: () => fetchAnomalyStats(),
+    refetchInterval: 3000,
   });
 }
 

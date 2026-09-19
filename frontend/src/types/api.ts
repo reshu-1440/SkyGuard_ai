@@ -94,7 +94,18 @@ export interface AnomalyEventRecord {
   observed_values: Record<string, number | null>;
   recommended_values: Record<string, number | null>;
   explanation_summary: string;
+  run_id?: string | null;
+  source?: string | null;
   created_at: string;
+}
+
+export interface AnomalyStatsSummary {
+  current_run_anomalies: number;
+  active_anomalies_24h: number;
+  total_persisted_anomalies: number;
+  active_run_id: string;
+  replay_cursor_time?: string | null;
+  source_type: string;
 }
 
 export interface FeatureContribution {

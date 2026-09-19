@@ -1,6 +1,6 @@
-import React from 'react';
 import { useSystemHealth, useReplayStatus, useStepReplay } from '../hooks/useSystem';
 import { useRunContext } from '../hooks/useRunContext';
+import { useAnomalyStats } from '../hooks/useAnomalies';
 import { SystemStatus } from '../components/SystemStatus';
 import { formatLatency } from '../utils/formatters';
 import { Cpu, Play, FastForward, CheckCircle2, Activity } from 'lucide-react';
@@ -9,6 +9,7 @@ export const SystemStatusPage: React.FC = () => {
   const { context } = useRunContext();
   const { data: systemHealth, isLoading } = useSystemHealth();
   const { data: replayStatus } = useReplayStatus();
+  const { data: anomalyStats } = useAnomalyStats();
   const stepMutation = useStepReplay();
 
   const handleStepReplay = (count: number) => {
@@ -99,8 +100,8 @@ export const SystemStatusPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Operational metrics summary bar - Differentiates Dataset Size, Processed, Operational Window, Persisted, and Active Stations */}
-          <div className="p-3 grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono text-[11px]"
+          {/* Operational metrics summary bar - Differentiates Dataset Size, Processed, Persisted Obs, Run Anomalies, and Persisted Anomalies */}
+          <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 font-mono text-[11px]"
             style={{ background: '#131C2E', border: '1px solid #152030', borderRadius: '2px' }}>
             <div>
               <span className="text-slate-400 block text-[10px] uppercase">Active Stations:</span>
@@ -111,16 +112,20 @@ export const SystemStatusPage: React.FC = () => {
               <span className="text-slate-100 font-bold">{context?.observation_count ?? 5760}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase">Processed:</span>
+              <span className="text-slate-400 block text-[10px] uppercase">Processed Obs:</span>
               <span className="text-ops-weather font-bold">{context?.current_observation_index ?? replayStatus?.emitted_count ?? 0}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase">Operational Window:</span>
-              <span className="text-slate-100 font-bold">60 Obs</span>
+              <span className="text-slate-400 block text-[10px] uppercase">Persisted Obs:</span>
+              <span className="text-slate-200 font-bold">{systemHealth?.total_observations_processed.toLocaleString() ?? 0}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase">Persisted (DB):</span>
-              <span className="text-slate-200 font-bold">{systemHealth?.total_observations_processed.toLocaleString() ?? 0}</span>
+              <span className="text-slate-400 block text-[10px] uppercase">Run Anomalies:</span>
+              <span className="text-red-400 font-bold">{anomalyStats?.current_run_anomalies ?? 0}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[10px] uppercase">Persisted Anomalies:</span>
+              <span className="text-slate-300 font-bold">{anomalyStats?.total_persisted_anomalies?.toLocaleString() ?? 0}</span>
             </div>
           </div>
         </div>

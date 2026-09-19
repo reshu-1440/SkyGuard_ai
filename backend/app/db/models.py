@@ -120,9 +120,13 @@ class AnomalyEventModel(Base):
     feature_version: Mapped[str] = mapped_column(String(64), default="v1.0.0", nullable=False)
     decision_engine_version: Mapped[str] = mapped_column(String(64), default="hybrid_v1.0.0", nullable=False)
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    run_id: Mapped[Optional[str]] = mapped_column(String(64), index=True, nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(String(64), index=True, nullable=True)
 
     __table_args__ = (
         Index("ix_anom_station_time", "station_id", "timestamp"),
+        Index("ix_anom_run_time", "run_id", "timestamp"),
+        Index("ix_anom_source_time", "source", "timestamp"),
     )
 
 

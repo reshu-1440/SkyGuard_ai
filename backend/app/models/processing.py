@@ -55,7 +55,21 @@ class AnomalyEventRecord(BaseModel):
     observed_values: Dict[str, Optional[float]] = Field(default_factory=dict, description="Observed parameter readings")
     recommended_values: Dict[str, Optional[float]] = Field(default_factory=dict, description="Recommended repair values")
     explanation_summary: str = Field(..., description="Natural language operator summary")
+    run_id: Optional[str] = Field(default=None, description="Active execution run identifier")
+    source: Optional[str] = Field(default=None, description="Data source identifier")
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class AnomalyStatsSummary(BaseModel):
+    """Aggregated anomaly metrics separating active run, 24h operational window, and database persistence."""
+    model_config = ConfigDict(frozen=True)
+
+    current_run_anomalies: int = Field(0, ge=0, description="Anomalies detected in current run up to replay cursor")
+    active_anomalies_24h: int = Field(0, ge=0, description="Active/unresolved anomalies within current 24h operational window")
+    total_persisted_anomalies: int = Field(0, ge=0, description="Total cumulative anomaly records stored in database")
+    active_run_id: str = Field(..., description="Active execution run identifier")
+    replay_cursor_time: Optional[str] = Field(None, description="Current simulated or operational UTC timestamp cutoff")
+    source_type: str = Field(..., description="Active telemetry source type")
 
 
 class ProcessingResult(BaseModel):

@@ -400,6 +400,21 @@ class StreamReplayEngine:
                         obs_dict[k] = v
                 obs = WeatherObservation(**obs_dict)
 
+            # Ensure observation carries active run_id and source_type from RunContext
+            obs_updates = {}
+            try:
+                from backend.app.core.deps import get_run_context_manager
+                active_ctx = get_run_context_manager().get_context()
+                if not obs.run_id and active_ctx.run_id:
+                    obs_updates["run_id"] = active_ctx.run_id
+                if not obs.source_type and active_ctx.source_type:
+                    obs_updates["source_type"] = active_ctx.source_type.value if hasattr(active_ctx.source_type, "value") else str(active_ctx.source_type)
+            except Exception:
+                pass
+
+            if obs_updates:
+                obs = obs.model_copy(update=obs_updates)
+
             res = engine.process_observation(obs)
             results.append(res)
             self.current_index += 1

@@ -1,6 +1,7 @@
 import { apiClient, ApiError } from './client';
 import {
   AnomalyEventRecord,
+  AnomalyStatsSummary,
   ExplanationSummary,
   PaginatedResponse,
 } from '../types/api';
@@ -14,6 +15,8 @@ export async function fetchAnomalies(params?: {
   limit?: number;
   offset?: number;
   historical?: boolean;
+  runId?: string;
+  source?: string;
 }): Promise<PaginatedResponse<AnomalyEventRecord>> {
   const query = new URLSearchParams();
   if (params?.stationId) query.set('station_id', params.stationId);
@@ -24,9 +27,15 @@ export async function fetchAnomalies(params?: {
   if (params?.limit) query.set('limit', String(params.limit));
   if (params?.offset) query.set('offset', String(params.offset));
   if (params?.historical !== undefined) query.set('historical', String(params.historical));
+  if (params?.runId) query.set('run_id', params.runId);
+  if (params?.source) query.set('source', params.source);
 
   const qs = query.toString() ? `?${query.toString()}` : '';
   return apiClient<PaginatedResponse<AnomalyEventRecord>>(`/anomalies${qs}`);
+}
+
+export async function fetchAnomalyStats(): Promise<AnomalyStatsSummary> {
+  return apiClient<AnomalyStatsSummary>('/anomalies/stats');
 }
 
 export async function fetchAnomalyDetail(eventId: string, historical?: boolean): Promise<AnomalyEventRecord> {

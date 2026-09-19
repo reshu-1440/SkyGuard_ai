@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRealtimeStream } from '../hooks/useRealtimeStream';
-import { useAnomalies } from '../hooks/useAnomalies';
+import { useAnomalyStats } from '../hooks/useAnomalies';
 import { useRunContext } from '../hooks/useRunContext';
 import { useLiveSourceHealth } from '../hooks/useSystem';
 import { DataFreshnessIndicator } from '../components/DataFreshnessIndicator';
@@ -27,7 +27,7 @@ export const TopBar: React.FC = () => {
   const navigate = useNavigate();
   const streamState = useRealtimeStream();
   const { context } = useRunContext();
-  const { data: anomalyData } = useAnomalies({ limit: 100 });
+  const { data: anomalyStats } = useAnomalyStats();
   const { data: liveSource } = useLiveSourceHealth();
   const [utcTime, setUtcTime] = useState<string>('');
   const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState<boolean>(false);
@@ -42,7 +42,8 @@ export const TopBar: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const totalAnomalies = anomalyData?.pagination?.total_count ?? 0;
+  const currentRunAnomalies = anomalyStats?.current_run_anomalies ?? 0;
+  const totalPersisted = anomalyStats?.total_persisted_anomalies ?? 0;
   const sourceType = context?.source_type || 'SYNTHETIC_VALIDATION';
   const mode = context?.mode || 'SYNTHETIC_REPLAY';
   const isRunning = context?.status === 'RUNNING';
@@ -124,7 +125,7 @@ export const TopBar: React.FC = () => {
   const processedCount = context?.current_observation_index ?? streamState.eventsReceivedCount;
   const totalCount = context?.observation_count ?? 0;
 
-  const hasActiveAnomalies = totalAnomalies > 0;
+  const hasActiveAnomalies = currentRunAnomalies > 0;
 
   return (
     <>
@@ -203,7 +204,7 @@ export const TopBar: React.FC = () => {
             <span>EVIDENCE</span>
           </button>
 
-          {/* Persisted Anomaly Records counter */}
+          {/* Current Run Anomalies counter */}
           <button
             onClick={() => navigate('/anomalies')}
             className="flex items-center gap-1.5 px-2.5 py-1 font-mono text-[11px] border transition-colors"
@@ -213,11 +214,11 @@ export const TopBar: React.FC = () => {
               borderColor: hasActiveAnomalies ? 'rgba(239,68,68,0.4)' : '#1F2D45',
               color: hasActiveAnomalies ? '#FCA5A5' : '#4A5B78',
             }}
-            title={`${totalAnomalies.toLocaleString()} persisted anomaly records in database`}
+            title={`Current Run Anomalies: ${currentRunAnomalies.toLocaleString()} (Run ID: ${context?.run_id || 'ACTIVE'} | Replay Cursor: ${processedCount}/${totalCount}) | Persisted in DB: ${totalPersisted.toLocaleString()}`}
           >
-            <Bell className="w-3.5 h-3.5" />
-            <span className="tabular-nums font-bold">{totalAnomalies.toLocaleString()}</span>
-            <span className="hidden sm:inline">ANOMALIES</span>
+            <Bell className={`w-3.5 h-3.5 ${hasActiveAnomalies ? 'text-red-400' : 'text-slate-500'}`} />
+            <span className="tabular-nums font-bold">{currentRunAnomalies.toLocaleString()}</span>
+            <span className="hidden sm:inline">CURRENT RUN ANOMALIES</span>
           </button>
 
           {/* UTC clock — static readout, no blinking */}

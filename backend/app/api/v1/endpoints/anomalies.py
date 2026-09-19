@@ -10,13 +10,31 @@ from backend.app.api.v1.deps import get_replay_engine, get_repository, get_run_c
 from backend.app.core.database import DatabaseRepository
 from backend.app.core.replay import StreamReplayEngine
 from backend.app.core.state import RunContextManager
-from backend.app.models.processing import AnomalyEventRecord, PaginatedResponse, PaginationMeta
+from backend.app.models.processing import AnomalyEventRecord, AnomalyStatsSummary, PaginatedResponse, PaginationMeta
 from backend.app.models.run_context import RunMode
 from ml.explainability.schema import ExplanationSummary
 
 from backend.app.api.v1.endpoints.stations import _get_replay_cursor_cutoff
 
 router = APIRouter(prefix="/anomalies", tags=["Anomalies & Alerts"])
+
+
+@router.get("/stats", response_model=AnomalyStatsSummary)
+async def get_anomaly_stats(
+    repo: DatabaseRepository = Depends(get_repository),
+    ctx_mgr: RunContextManager = Depends(get_run_context_manager),
+    replay: StreamReplayEngine = Depends(get_replay_engine),
+) -> AnomalyStatsSummary:
+    """Get separated anomaly metrics (current run, active 24h operational window, and total persisted records)."""
+    if not isinstance(repo, DatabaseRepository):
+        repo = get_repository()
+    if not isinstance(ctx_mgr, RunContextManager):
+        ctx_mgr = get_run_context_manager()
+    if not isinstance(replay, StreamReplayEngine):
+        replay = get_replay_engine()
+
+    ctx = ctx_mgr.get_context()
+    return repo.get_anomaly_stats(ctx, replay)
 
 
 @router.get("", response_model=PaginatedResponse[AnomalyEventRecord])
@@ -29,11 +47,13 @@ async def list_anomalies(
     limit: int = Query(50, ge=1, le=500, description="Items per page"),
     offset: int = Query(0, ge=0, description="Page offset"),
     historical: bool = Query(False, description="Allow full historical dataset bypassing active replay cursor"),
+    run_id: Optional[str] = Query(None, description="Filter by active run context ID"),
+    source: Optional[str] = Query(None, description="Filter by data source"),
     repo: DatabaseRepository = Depends(get_repository),
     ctx_mgr: RunContextManager = Depends(get_run_context_manager),
     replay: StreamReplayEngine = Depends(get_replay_engine),
 ):
-    """List detected anomalies with multi-criteria filtering and pagination, bounded by active replay cursor."""
+    """List detected anomalies with multi-criteria filtering and pagination, bounded by active replay cursor and run context."""
     if not isinstance(repo, DatabaseRepository):
         repo = get_repository()
     if not isinstance(ctx_mgr, RunContextManager):
@@ -49,8 +69,15 @@ async def list_anomalies(
     eff_limit = limit if isinstance(limit, int) else 50
     eff_offset = offset if isinstance(offset, int) else 0
     eff_historical = historical if isinstance(historical, bool) else False
+    eff_run_id = run_id if isinstance(run_id, str) and run_id.strip() else None
+    eff_source = source if isinstance(source, str) and source.strip() else None
 
     ctx = ctx_mgr.get_context()
+    if not eff_historical:
+        # Enforce scoping to active run in operational/replay mode
+        if eff_run_id is None and ctx.run_id:
+            eff_run_id = ctx.run_id
+
     cutoff = _get_replay_cursor_cutoff(ctx, replay, historical=eff_historical, repo=repo)
     if cutoff is not None:
         if cutoff.year <= 1970:
@@ -73,6 +100,8 @@ async def list_anomalies(
         end_time=eff_end,
         limit=eff_limit,
         offset=eff_offset,
+        run_id=eff_run_id,
+        source=eff_source,
     )
     return PaginatedResponse(
         items=items,

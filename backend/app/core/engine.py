@@ -430,6 +430,18 @@ class RealTimeProcessingEngine:
                 observation.station_id,
                 observation.timestamp.astimezone(timezone.utc).isoformat(),
             )
+            obs_run_id = observation.run_id
+            obs_source = observation.source_type or str(observation.source.value if hasattr(observation.source, "value") else observation.source)
+            if not obs_run_id:
+                try:
+                    from backend.app.api.v1.deps import get_run_context_manager
+                    active_ctx = get_run_context_manager().get_context()
+                    obs_run_id = active_ctx.run_id
+                    if not obs_source:
+                        obs_source = active_ctx.source_type.value if hasattr(active_ctx.source_type, "value") else str(active_ctx.source_type)
+                except Exception:
+                    pass
+
             event_rec = AnomalyEventRecord(
                 event_id=assigned_event_id,
                 station_id=observation.station_id,
@@ -440,11 +452,13 @@ class RealTimeProcessingEngine:
                 observed_values=target_vals,
                 recommended_values={"temperature_c": corr_rec.recommended_value if corr_rec else None},
                 explanation_summary=explanation.summary,
+                run_id=obs_run_id,
+                source=obs_source,
             )
 
             prov_data = {
-                "run_id": observation.run_id,
-                "source_type": observation.source_type or str(observation.source.value if hasattr(observation.source, "value") else observation.source),
+                "run_id": obs_run_id,
+                "source_type": obs_source,
                 "source_name": observation.source_name,
                 "dataset_id": observation.dataset_id,
                 "dataset_version": observation.dataset_version,

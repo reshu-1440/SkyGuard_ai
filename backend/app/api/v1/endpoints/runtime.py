@@ -256,7 +256,9 @@ async def reset_active_run(
     if hasattr(engine, "state_manager") and engine.state_manager is not None:
         engine.state_manager.stations.clear()
 
+    new_run_id = f"RUN-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     return ctx_mgr.update_context(
+        run_id=new_run_id,
         status=RunStatus.IDLE,
         current_observation_index=0,
         current_synthetic_time=None,
