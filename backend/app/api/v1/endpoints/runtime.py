@@ -125,23 +125,67 @@ async def select_data_source(
             config=payload.config,
         )
 
-        # Configure underlying engines based on selected source & mode
+        # Configure underlying engines & dynamic active topology based on selected source & mode
         if payload.source_type == DataSourceType.SYNTHETIC_VALIDATION:
             replay.load_synthetic_benchmark()
-            ctx_mgr.update_context(observation_count=len(replay.observations))
+            from backend.app.api.v1.deps import get_synthetic_topology
+            synth_topo = get_synthetic_topology()
+            repo.set_topology(synth_topo)
+            if hasattr(engine, "spatial_engine") and engine.spatial_engine is not None:
+                engine.spatial_engine.topology = synth_topo
+            new_ctx = ctx_mgr.update_context(
+                station_count=len(synth_topo.stations),
+                observation_count=len(replay.observations),
+            )
         elif payload.source_type == DataSourceType.HISTORICAL_CSV:
             replay.load_historical_dataset(payload.dataset_id)
-            station_ids = {o.station_id for o in replay.observations}
-            ctx_mgr.update_context(
+            from ml.spatial.topology import SpatialNetworkTopology
+            from backend.app.api.v1.deps import get_default_topology
+            hist_topo = SpatialNetworkTopology.from_observations(replay.observations)
+            if not hist_topo.stations:
+                hist_topo = get_default_topology()
+            repo.set_topology(hist_topo)
+            if hasattr(engine, "spatial_engine") and engine.spatial_engine is not None:
+                engine.spatial_engine.topology = hist_topo
+            new_ctx = ctx_mgr.update_context(
                 observation_count=len(replay.observations),
-                station_count=len(station_ids) if station_ids else 8,
+                station_count=len(hist_topo.stations),
             )
         elif payload.source_type == DataSourceType.OPEN_METEO:
+            from backend.app.api.v1.deps import get_default_topology
+            live_topo = get_default_topology()
+            repo.set_topology(live_topo)
+            if hasattr(engine, "spatial_engine") and engine.spatial_engine is not None:
+                engine.spatial_engine.topology = live_topo
+            if hasattr(poller, "topology"):
+                poller.topology = live_topo
+            new_ctx = ctx_mgr.update_context(
+                station_count=len(live_topo.stations),
+            )
             # When LIVE API is selected, live poller must become active immediately
             if payload.mode == RunMode.LIVE_MONITORING:
                 if not poller.is_running:
                     await poller.start()
                 new_ctx = ctx_mgr.update_context(status=RunStatus.RUNNING)
+
+        # Broadcast real-time notifications so clients refresh station roster and system status immediately
+        from backend.app.core.ws_manager import get_ws_manager
+        from backend.app.models.events import EventType, WebSocketEnvelope
+        ws_mgr = get_ws_manager()
+        ws_mgr.broadcast_sync(WebSocketEnvelope.create(
+            event_id=f"STN-CHG-{int(datetime.now(timezone.utc).timestamp())}",
+            event_type=EventType.STATION_STATUS_CHANGED,
+            station_id="ALL",
+            timestamp=datetime.now(timezone.utc),
+            payload={"status": "UPDATED", "station_count": len(repo.topology.stations)},
+        ))
+        ws_mgr.broadcast_sync(WebSocketEnvelope.create(
+            event_id=f"SYS-CHG-{int(datetime.now(timezone.utc).timestamp())}",
+            event_type=EventType.SYSTEM_STATUS_CHANGED,
+            station_id="SYSTEM",
+            timestamp=datetime.now(timezone.utc),
+            payload={"status": "UPDATED", "source_type": payload.source_type},
+        ))
 
         return new_ctx
     except ValueError as err:
@@ -198,10 +242,14 @@ async def reset_active_run(
     repo: DatabaseRepository = Depends(get_repository),
 ) -> RunContext:
     """Reset current RunContext state pointers to initial conditions without destructive database operations."""
-    if replay.is_running:
-        await replay.pause()
-    if poller.is_running:
-        await poller.stop()
+    current = ctx_mgr.get_context()
+    if current.source_type == DataSourceType.SYNTHETIC_VALIDATION:
+        if len(repo.topology.stations) != 20:
+            from backend.app.api.v1.deps import get_synthetic_topology
+            synth_topo = get_synthetic_topology()
+            repo.set_topology(synth_topo)
+            if hasattr(engine, "spatial_engine") and engine.spatial_engine is not None:
+                engine.spatial_engine.topology = synth_topo
 
     replay.reset(preserve_db=True)
     repo.clear_run_cache()

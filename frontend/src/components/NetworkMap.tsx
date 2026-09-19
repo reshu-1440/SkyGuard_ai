@@ -34,7 +34,7 @@ function MapBoundsController({
   selectedStationId?: string;
 }) {
   const map = useMap();
-  const hasInitialized = useRef(false);
+  const lastStationKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (!stations.length) return;
@@ -47,10 +47,15 @@ function MapBoundsController({
       }
     }
 
-    if (!hasInitialized.current && stations.length > 0) {
+    const stationKey = stations
+      .map((s) => s.station_id)
+      .sort()
+      .join(',');
+
+    if (stationKey && stationKey !== lastStationKeyRef.current) {
       const bounds = L.latLngBounds(stations.map((s) => [s.latitude, s.longitude]));
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 8 });
-      hasInitialized.current = true;
+      lastStationKeyRef.current = stationKey;
     }
   }, [stations, selectedStationId, map]);
 

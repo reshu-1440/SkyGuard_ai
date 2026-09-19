@@ -514,11 +514,25 @@ class DatabaseRepository:
         self.latencies_history_ms.clear()
         logger.info("DatabaseRepository transient run cache cleared.")
 
-    def get_stations(self, max_timestamp: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    def set_topology(self, new_topology: SpatialNetworkTopology) -> None:
+        """Dynamically update repository spatial network topology to match the active dataset."""
+        self.topology = new_topology
+        self._sync_topology_stations()
+        self.clear_run_cache()
+        logger.info(
+            "Repository topology dynamically updated: %d active stations registered.",
+            len(self.topology.stations),
+        )
+
+    def get_stations(
+        self,
+        max_timestamp: Optional[datetime] = None,
+        source: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """List all stations in network topology with latest live telemetry."""
         results: List[Dict[str, Any]] = []
         for s_id, node in self.topology.stations.items():
-            latest = self.get_station_latest(s_id, max_timestamp=max_timestamp)
+            latest = self.get_station_latest(s_id, max_timestamp=max_timestamp, source=source)
             results.append({
                 "station_id": s_id,
                 "name": node.name,
@@ -532,12 +546,17 @@ class DatabaseRepository:
             })
         return results
 
-    def get_station_by_id(self, station_id: str, max_timestamp: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    def get_station_by_id(
+        self,
+        station_id: str,
+        max_timestamp: Optional[datetime] = None,
+        source: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Get single station metadata and latest status."""
         node = self.topology.stations.get(station_id)
         if not node:
             return None
-        latest = self.get_station_latest(station_id, max_timestamp=max_timestamp)
+        latest = self.get_station_latest(station_id, max_timestamp=max_timestamp, source=source)
         return {
             "station_id": station_id,
             "name": node.name,
@@ -550,8 +569,13 @@ class DatabaseRepository:
             "latest_snapshot": latest,
         }
 
-    def get_station_latest(self, station_id: str, max_timestamp: Optional[datetime] = None) -> Optional[LiveStationSnapshot]:
-        """Fetch real-time snapshot for a given station from cache or DB bounded by optional max_timestamp."""
+    def get_station_latest(
+        self,
+        station_id: str,
+        max_timestamp: Optional[datetime] = None,
+        source: Optional[str] = None,
+    ) -> Optional[LiveStationSnapshot]:
+        """Fetch real-time snapshot for a given station from cache or DB bounded by optional max_timestamp and source."""
         node = self.topology.stations.get(station_id)
         name = node.name if node else f"Station {station_id}"
         lat = node.latitude if node else 0.0
@@ -570,10 +594,15 @@ class DatabaseRepository:
                 elevation_m=elev,
             )
 
-        # 1. Check in-memory state bounded by max_dt
+        # 1. Check in-memory state bounded by max_dt and source
         stn_keys = [
             k for k in self.observation_order
-            if k.startswith(f"{station_id}::") and (max_dt is None or self.observations[k].timestamp.astimezone(timezone.utc) <= max_dt)
+            if k.startswith(f"{station_id}::")
+            and (max_dt is None or self.observations[k].timestamp.astimezone(timezone.utc) <= max_dt)
+            and (
+                source is None
+                or str(self.observations[k].source.value if hasattr(self.observations[k].source, "value") else self.observations[k].source) == source
+            )
         ]
         health = self.get_station_health(station_id)
 
@@ -612,6 +641,8 @@ class DatabaseRepository:
                 query = select(WeatherObservationModel).where(WeatherObservationModel.station_id == station_id)
                 if max_dt is not None:
                     query = query.where(WeatherObservationModel.observation_timestamp <= max_dt)
+                if source:
+                    query = query.where(WeatherObservationModel.source == source)
                 latest_m = session.execute(
                     query.order_by(desc(WeatherObservationModel.observation_timestamp)).limit(1)
                 ).scalar_one_or_none()

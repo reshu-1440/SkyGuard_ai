@@ -48,12 +48,21 @@ async def lifespan(app: FastAPI):
 
     # Auto-start demo replay simulation if demo_autostart is enabled
     if settings.demo_autostart:
-        from backend.app.api.v1.deps import get_engine, get_replay_engine, get_run_context_manager
+        from backend.app.api.v1.deps import get_engine, get_replay_engine, get_repository, get_run_context_manager, get_synthetic_topology
         from backend.app.models.run_context import RunStatus
         replay = get_replay_engine()
         engine = get_engine()
+        repo = get_repository()
         ctx_mgr = get_run_context_manager()
         ctx = ctx_mgr.get_context()
+
+        # Ensure active topology has all 20 synthetic benchmark stations
+        if len(repo.topology.stations) != 20:
+            synth_topo = get_synthetic_topology()
+            repo.set_topology(synth_topo)
+            if hasattr(engine, "spatial_engine") and engine.spatial_engine is not None:
+                engine.spatial_engine.topology = synth_topo
+
         if ctx.status == RunStatus.IDLE:
             logger.info("DEMO_AUTOSTART enabled: launching Synthetic Benchmark Replay at 1.0x cadence...")
             replay.set_speed(1.0)

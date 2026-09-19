@@ -8,6 +8,12 @@ import {
   ObservationUpdatedPayload,
   HealthUpdatedPayload,
 } from '../types/events';
+import {
+  StationItem,
+  LiveStationSnapshot,
+  WeatherObservation,
+  PaginatedResponse,
+} from '../types/api';
 
 export interface StreamState {
   connectionStatus: ConnectionStatus;
@@ -67,6 +73,16 @@ export const RealtimeStreamProvider: React.FC<{ children: React.ReactNode }> = (
     return true; // New
   }, []);
 
+  // Debounced network refetch to avoid network saturation on fast replays
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerDebouncedStationRefetch = useCallback(() => {
+    if (debounceTimerRef.current) return;
+    debounceTimerRef.current = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['stations'] });
+      debounceTimerRef.current = null;
+    }, 400);
+  }, [queryClient]);
+
   // Check ordering based on station timestamp
   const isChronologicallyValid = useCallback((stationId?: string | null, timestampStr?: string): boolean => {
     if (!stationId || !timestampStr) return true;
@@ -83,6 +99,9 @@ export const RealtimeStreamProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Reconcile and resync client state on reconnection
   const resyncStateOnReconnect = useCallback(() => {
+    stationTimestampsRef.current.clear();
+    seenEventIdsRef.current.clear();
+    seenEventIdsListRef.current = [];
     queryClient.invalidateQueries({ queryKey: ['stations'] });
     queryClient.invalidateQueries({ queryKey: ['station'] });
     queryClient.invalidateQueries({ queryKey: ['anomalies'] });
@@ -119,12 +138,92 @@ export const RealtimeStreamProvider: React.FC<{ children: React.ReactNode }> = (
             setSecondsSinceLastUpdate(Math.max(0, Math.floor((Date.now() - obsTime.getTime()) / 1000)));
           }
         }
+
+        // 1. Immediately update in-memory stations list cache so UI updates with 0 latency
         if (payload.station_id) {
-          queryClient.invalidateQueries({ queryKey: ['station', payload.station_id, 'latest'] });
-          queryClient.invalidateQueries({ queryKey: ['station', payload.station_id, 'history'] });
-          queryClient.invalidateQueries({ queryKey: ['station', payload.station_id] });
+          queryClient.setQueryData<StationItem[]>(['stations'], (old) => {
+            if (!old || old.length === 0) return old;
+            return old.map((stn) => {
+              if (stn.station_id !== payload.station_id) return stn;
+              const prevSnap = stn.latest_snapshot;
+              const updatedSnap: LiveStationSnapshot = {
+                station_id: payload.station_id,
+                station_name: payload.station_name || stn.name,
+                latitude: stn.latitude,
+                longitude: stn.longitude,
+                elevation_m: stn.elevation_m,
+                status: prevSnap?.status || stn.status || 'ACTIVE',
+                last_seen_timestamp: payload.timestamp,
+                latest_temperature_c: payload.temperature ?? prevSnap?.latest_temperature_c ?? null,
+                latest_humidity_pct: payload.humidity ?? prevSnap?.latest_humidity_pct ?? null,
+                latest_pressure_hpa: payload.pressure ?? prevSnap?.latest_pressure_hpa ?? null,
+                latest_decision: prevSnap?.latest_decision || 'NORMAL',
+                latest_health_score: prevSnap?.latest_health_score ?? null,
+                latest_health_band: prevSnap?.latest_health_band || 'HEALTHY',
+                active_anomaly_count_24h: prevSnap?.active_anomaly_count_24h ?? 0,
+              };
+              return {
+                ...stn,
+                latest_snapshot: updatedSnap,
+              };
+            });
+          });
+
+          // 2. Immediately update single station latest snapshot cache
+          queryClient.setQueryData<LiveStationSnapshot>(['station', payload.station_id, 'latest'], (old) => {
+            return {
+              station_id: payload.station_id,
+              station_name: payload.station_name || old?.station_name || `Station ${payload.station_id}`,
+              latitude: old?.latitude ?? 0,
+              longitude: old?.longitude ?? 0,
+              elevation_m: old?.elevation_m ?? 0,
+              status: old?.status || 'ACTIVE',
+              last_seen_timestamp: payload.timestamp,
+              latest_temperature_c: payload.temperature ?? old?.latest_temperature_c ?? null,
+              latest_humidity_pct: payload.humidity ?? old?.latest_humidity_pct ?? null,
+              latest_pressure_hpa: payload.pressure ?? old?.latest_pressure_hpa ?? null,
+              latest_decision: old?.latest_decision || 'NORMAL',
+              latest_health_score: old?.latest_health_score ?? null,
+              latest_health_band: old?.latest_health_band || 'HEALTHY',
+              active_anomaly_count_24h: old?.active_anomaly_count_24h ?? 0,
+            };
+          });
+
+          // 3. Incrementally append observation to active station history queries
+          queryClient.setQueriesData<PaginatedResponse<WeatherObservation>>(
+            { queryKey: ['station', payload.station_id, 'history'] },
+            (old) => {
+              if (!old || !old.items) return old;
+              const newObs: WeatherObservation = {
+                station_id: payload.station_id,
+                timestamp: payload.timestamp,
+                temperature: payload.temperature,
+                humidity: payload.humidity,
+                pressure: payload.pressure,
+                latitude: 0,
+                longitude: 0,
+                source: payload.source_type || 'SYNTHETIC_VALIDATION',
+                ingestion_timestamp: payload.received_timestamp || new Date().toISOString(),
+              };
+              if (old.items.some((o) => o.timestamp === payload.timestamp)) {
+                return old;
+              }
+              const updatedItems = [...old.items, newObs];
+              const trimmed = updatedItems.slice(-60);
+              return {
+                ...old,
+                items: trimmed,
+                pagination: {
+                  ...old.pagination,
+                  total_count: (old.pagination?.total_count ?? 0) + 1,
+                },
+              };
+            }
+          );
         }
-        queryClient.invalidateQueries({ queryKey: ['stations'] });
+
+        // 4. Debounce full network refetch to avoid network saturation
+        triggerDebouncedStationRefetch();
         break;
       }
       case 'anomaly.created':
@@ -152,16 +251,30 @@ export const RealtimeStreamProvider: React.FC<{ children: React.ReactNode }> = (
         break;
       }
       case 'station.status_changed': {
+        stationTimestampsRef.current.clear();
+        seenEventIdsRef.current.clear();
+        seenEventIdsListRef.current = [];
         queryClient.invalidateQueries({ queryKey: ['stations'] });
+        queryClient.invalidateQueries({ queryKey: ['station'] });
         break;
       }
       case 'system.status_changed': {
+        stationTimestampsRef.current.clear();
+        seenEventIdsRef.current.clear();
+        seenEventIdsListRef.current = [];
+        queryClient.invalidateQueries({ queryKey: ['stations'] });
+        queryClient.invalidateQueries({ queryKey: ['station'] });
         queryClient.invalidateQueries({ queryKey: ['system'] });
         break;
       }
       case 'replay.progress': {
         const p = envelope.payload as any;
         if (p) {
+          if (p.current_index === 0) {
+            stationTimestampsRef.current.clear();
+            seenEventIdsRef.current.clear();
+            seenEventIdsListRef.current = [];
+          }
           updateContextFromEvent({
             current_observation_index: p.current_index,
             current_synthetic_time: p.current_synthetic_time,

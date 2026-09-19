@@ -191,6 +191,41 @@ class SpatialNetworkTopology:
 
         return cls(stations=stations)
 
+    @classmethod
+    def from_observations(cls, observations: Sequence[Any]) -> SpatialNetworkTopology:
+        """Construct topology by inspecting unique station metadata in a sequence of WeatherObservation objects."""
+        stations: Dict[str, StationNode] = {}
+        for obs in observations:
+            s_id = str(obs.station_id)
+            if s_id in stations:
+                continue
+            lat = obs.latitude
+            lon = obs.longitude
+            if lat is None or lon is None:
+                continue
+            try:
+                if math.isnan(lat) or math.isnan(lon):
+                    continue
+            except TypeError:
+                pass
+            elev = getattr(obs, "elevation", 0.0) or 0.0
+            try:
+                if math.isnan(elev):
+                    elev = 0.0
+            except TypeError:
+                elev = 0.0
+            stn_name = getattr(obs, "station_name", None) or f"Station {s_id}"
+            node = StationNode(
+                station_id=s_id,
+                name=str(stn_name),
+                latitude=float(lat),
+                longitude=float(lon),
+                elevation_m=float(elev),
+            )
+            stations[s_id] = node
+
+        return cls(stations=stations)
+
     def _recompute_matrices(self) -> None:
         """Recompute pairwise geodesic distances, bearings, and elevation differences."""
         s_ids = list(self.stations.keys())

@@ -21,9 +21,11 @@ export const LiveMonitoringPage: React.FC = () => {
   const [healthFilter, setHealthFilter] = useState<string>('ALL');
   const [selectedStationId, setSelectedStationId] = useState<string>('');
 
-  // Default selection to first station or first flagged station
+  // Default selection to first station or first flagged station, or reselect if current selection is invalid
   useEffect(() => {
-    if (!selectedStationId && stations.length > 0) {
+    if (stations.length === 0) return;
+    const exists = stations.some((s) => s.station_id === selectedStationId);
+    if (!selectedStationId || !exists) {
       const flagged = stations.find(
         (s) =>
           (s.latest_snapshot?.active_anomaly_count_24h ?? 0) > 0 ||

@@ -42,11 +42,27 @@ def get_default_topology() -> SpatialNetworkTopology:
     return topo
 
 
+def get_synthetic_topology() -> SpatialNetworkTopology:
+    """Initialize spatial topology from the canonical Phase 13A synthetic benchmark dataset (20 stations)."""
+    from backend.app.connectors.provider_registry import SyntheticValidationConnector
+    connector = SyntheticValidationConnector()
+    try:
+        connector.connect()
+        observations = list(connector.fetch_observations())
+        return SpatialNetworkTopology.from_observations(observations)
+    except Exception as err:
+        logger.warning("Could not build synthetic topology from dataset: %s, falling back to default.", err)
+        return get_default_topology()
+
+
 def get_repository() -> DatabaseRepository:
     """Get or create singleton DatabaseRepository."""
     global _repository
     if _repository is None:
-        topo = get_default_topology()
+        try:
+            topo = get_synthetic_topology()
+        except Exception:
+            topo = get_default_topology()
         _repository = DatabaseRepository(topology=topo)
     return _repository
 
@@ -61,59 +77,11 @@ def get_engine() -> RealTimeProcessingEngine:
 
 
 def get_replay_engine() -> StreamReplayEngine:
-    """Get or create singleton StreamReplayEngine with frozen demo dataset support."""
+    """Get or create singleton StreamReplayEngine with canonical synthetic benchmark dataset."""
     global _replay_engine
     if _replay_engine is None:
         _replay_engine = StreamReplayEngine()
-        import os
-        from pathlib import Path
-        import pandas as pd
-        
-        # Check if demo replay dataset exists
-        root = Path(__file__).resolve().parents[3]
-        dataset_path = root / "demo" / "replay" / "narrative_replay_dataset.csv"
-        
-        if dataset_path.exists():
-            df = pd.read_csv(dataset_path)
-            _replay_engine.load_from_dataframe(df)
-            _replay_engine.current_scenario_id = "flagship_narrative"
-        else:
-            # Fallback procedural generation
-            topo = get_default_topology()
-            records = []
-            base_time = pd.Timestamp("2026-09-17 00:00:00", tz="UTC")
-            for step in range(30):
-                t = base_time + pd.Timedelta(minutes=5 * step)
-                for idx, (s_id, node) in enumerate(topo.stations.items()):
-                    t_val = 25.0 + 5.0 * math.sin(step / 6.0) + (idx * 0.4)
-                    h_val = 60.0 - 10.0 * math.sin(step / 6.0) - (idx * 0.2)
-                    p_val = 1013.25 - (node.elevation_m / 8.0)
-                    records.append({
-                        "station_id": s_id,
-                        "timestamp": t.isoformat(),
-                        "latitude": node.latitude,
-                        "longitude": node.longitude,
-                        "elevation": node.elevation_m,
-                        "temperature_c": t_val,
-                        "relative_humidity_pct": h_val,
-                        "sea_level_pressure_hpa": p_val,
-                    })
-            df = pd.DataFrame(records)
-            _replay_engine.load_from_dataframe(df)
-
-            if records:
-                _replay_engine.register_injected_anomaly(
-                    station_id="42182099999",
-                    timestamp=(base_time + pd.Timedelta(minutes=15)).isoformat(),
-                    anomaly_type="SPIKE",
-                    corrupted_values={"temperature": 52.0},
-                )
-                _replay_engine.register_injected_anomaly(
-                    station_id="42181099999",
-                    timestamp=(base_time + pd.Timedelta(minutes=25)).isoformat(),
-                    anomaly_type="FROZEN_SENSOR",
-                    corrupted_values={"humidity": 5.0},
-                )
+        _replay_engine.load_synthetic_benchmark()
     return _replay_engine
 
 
