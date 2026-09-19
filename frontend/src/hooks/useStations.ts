@@ -40,6 +40,7 @@ export function useStationHistory(
     limit?: number;
     offset?: number;
     order?: 'asc' | 'desc';
+    historical?: boolean;
   }
 ) {
   return useQuery({

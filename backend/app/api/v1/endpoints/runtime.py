@@ -12,8 +12,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from backend.app.api.v1.deps import get_engine, get_live_poller, get_replay_engine
+from backend.app.api.v1.deps import get_engine, get_live_poller, get_replay_engine, get_repository
 from backend.app.connectors.provider_registry import ProviderRegistry
+from backend.app.core.config import get_settings
+from backend.app.core.database import DatabaseRepository
 from backend.app.core.deps import get_run_context_manager
 from backend.app.core.engine import RealTimeProcessingEngine
 from backend.app.core.replay import StreamReplayEngine
@@ -48,19 +50,26 @@ async def get_active_run_context(
 ) -> RunContext:
     """Get canonical active RunContext detailing current data source, run mode, transport, and execution status."""
     ctx = ctx_mgr.get_context()
+    settings = get_settings()
+
     # Synchronize dynamic execution state
+    meta = dict(ctx.metadata or {})
+    meta["demo_autostart"] = settings.demo_autostart
+
     if ctx.mode in ("SYNTHETIC_REPLAY", "HISTORICAL_REPLAY"):
         return ctx_mgr.update_context(
             current_observation_index=replay.current_index,
             status=RunStatus.RUNNING if replay.is_running else ctx.status,
             replay_speed=replay.speed_multiplier,
             observation_count=len(replay.observations),
+            metadata=meta,
         )
     elif ctx.mode == "LIVE_MONITORING":
         return ctx_mgr.update_context(
             status=RunStatus.RUNNING if poller.is_running else RunStatus.IDLE,
+            metadata=meta,
         )
-    return ctx
+    return ctx_mgr.update_context(metadata=meta)
 
 
 @router.get("/providers")
@@ -76,6 +85,7 @@ async def select_data_source(
     replay: StreamReplayEngine = Depends(get_replay_engine),
     poller: LiveSourcePoller = Depends(get_live_poller),
     engine: RealTimeProcessingEngine = Depends(get_engine),
+    repo: DatabaseRepository = Depends(get_repository),
 ) -> RunContext:
     """Switch active data source and run mode.
     
@@ -104,6 +114,7 @@ async def select_data_source(
             await poller.stop()
 
         # Reset transient in-memory station state buffers to prevent cross-mode observation bleed
+        repo.clear_run_cache()
         if hasattr(engine, "state_manager") and engine.state_manager is not None:
             engine.state_manager.stations.clear()
 
@@ -183,6 +194,8 @@ async def reset_active_run(
     ctx_mgr: RunContextManager = Depends(get_run_context_manager),
     replay: StreamReplayEngine = Depends(get_replay_engine),
     poller: LiveSourcePoller = Depends(get_live_poller),
+    engine: RealTimeProcessingEngine = Depends(get_engine),
+    repo: DatabaseRepository = Depends(get_repository),
 ) -> RunContext:
     """Reset current RunContext state pointers to initial conditions without destructive database operations."""
     if replay.is_running:
@@ -191,6 +204,9 @@ async def reset_active_run(
         await poller.stop()
 
     replay.reset(preserve_db=True)
+    repo.clear_run_cache()
+    if hasattr(engine, "state_manager") and engine.state_manager is not None:
+        engine.state_manager.stations.clear()
 
     return ctx_mgr.update_context(
         status=RunStatus.IDLE,

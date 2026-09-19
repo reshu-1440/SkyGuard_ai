@@ -6,7 +6,7 @@ import { MetricTable, ColumnDef } from '../components/MetricTable';
 import { StationStatus } from '../components/StationStatus';
 import { WeatherTrendChart, TimeSeriesPoint } from '../components/WeatherTrendChart';
 import { StationItem } from '../types/api';
-import { formatTemperature, formatHumidity, formatPressure, formatHealthScore } from '../utils/formatters';
+import { formatTemperature, formatHumidity, formatPressure, formatHealthScore, formatAge, formatIsoUtc } from '../utils/formatters';
 import { Search, Filter, Radio, Clock, PlayCircle, FileSpreadsheet, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -33,8 +33,8 @@ export const LiveMonitoringPage: React.FC = () => {
     }
   }, [stations, selectedStationId]);
 
-  // Fetch telemetry for sparkline strip for selected station (latest 36 observations)
-  const { data: historyData } = useStationHistory(selectedStationId, { limit: 36, order: 'desc' });
+  // Fetch telemetry for sparkline strip for selected station (rolling operational window: latest 60 observations)
+  const { data: historyData } = useStationHistory(selectedStationId, { limit: 60, order: 'desc' });
 
   const sparklineData: TimeSeriesPoint[] = useMemo(() => {
     if (!historyData?.items || historyData.items.length === 0) return [];
@@ -235,6 +235,45 @@ export const LiveMonitoringPage: React.FC = () => {
           )}
           <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
             Showing <strong className="text-slate-200">{filtered.length}</strong> of {stations.length}
+          </span>
+        </div>
+      </div>
+
+      {/* Operational Telemetry Stream Metrics Bar */}
+      <div
+        className="p-3 grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono text-[11px]"
+        style={{ background: '#0D1420', border: '1px solid #1F2D45', borderRadius: '2px' }}
+      >
+        <div>
+          <span className="text-slate-400 block text-[10px] uppercase">Current Replay Time</span>
+          <span className="text-ops-weather font-bold truncate block">
+            {context?.current_synthetic_time ? formatIsoUtc(context.current_synthetic_time) : (context?.mode === 'LIVE_MONITORING' ? 'LIVE CADENCE' : 'WAITING FOR STREAM')}
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-400 block text-[10px] uppercase">Processed</span>
+          <span className="text-slate-100 font-bold">
+            {(context?.current_observation_index ?? 0).toLocaleString()}
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-400 block text-[10px] uppercase">Total</span>
+          <span className="text-slate-400 font-medium">
+            {(context?.observation_count ?? 5760).toLocaleString()}
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-400 block text-[10px] uppercase">Latest Observation</span>
+          <span className="text-slate-200 font-medium truncate block">
+            {context?.current_synthetic_time
+              ? formatIsoUtc(context.current_synthetic_time, false)
+              : (streamState.lastObservationTimestamp ? formatIsoUtc(streamState.lastObservationTimestamp.toISOString(), false) : '--')}
+          </span>
+        </div>
+        <div>
+          <span className="text-slate-400 block text-[10px] uppercase">Age</span>
+          <span className="text-emerald-400 font-bold">
+            {context?.status === 'RUNNING' ? formatAge(streamState.secondsSinceLastUpdate) : (context?.status || 'IDLE')}
           </span>
         </div>
       </div>

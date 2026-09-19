@@ -498,11 +498,27 @@ class DatabaseRepository:
     # Query APIs with Seamless Database & Cache Fallback
     # =========================================================================
 
-    def get_stations(self) -> List[Dict[str, Any]]:
+    def clear_run_cache(self) -> None:
+        """Clear transient in-memory observation, anomaly, health, and latency caches for a fresh run."""
+        self.observations.clear()
+        self.observation_order.clear()
+        self.anomaly_events.clear()
+        self.anomaly_order.clear()
+        self.explanations.clear()
+        self.latest_health_by_station.clear()
+        self.health_history.clear()
+        self.corrections.clear()
+        self.correction_order.clear()
+        self.processed_observations_count = 0
+        self.last_processed_timestamp = None
+        self.latencies_history_ms.clear()
+        logger.info("DatabaseRepository transient run cache cleared.")
+
+    def get_stations(self, max_timestamp: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """List all stations in network topology with latest live telemetry."""
         results: List[Dict[str, Any]] = []
         for s_id, node in self.topology.stations.items():
-            latest = self.get_station_latest(s_id)
+            latest = self.get_station_latest(s_id, max_timestamp=max_timestamp)
             results.append({
                 "station_id": s_id,
                 "name": node.name,
@@ -516,12 +532,12 @@ class DatabaseRepository:
             })
         return results
 
-    def get_station_by_id(self, station_id: str) -> Optional[Dict[str, Any]]:
+    def get_station_by_id(self, station_id: str, max_timestamp: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
         """Get single station metadata and latest status."""
         node = self.topology.stations.get(station_id)
         if not node:
             return None
-        latest = self.get_station_latest(station_id)
+        latest = self.get_station_latest(station_id, max_timestamp=max_timestamp)
         return {
             "station_id": station_id,
             "name": node.name,
@@ -534,23 +550,40 @@ class DatabaseRepository:
             "latest_snapshot": latest,
         }
 
-    def get_station_latest(self, station_id: str) -> Optional[LiveStationSnapshot]:
-        """Fetch real-time snapshot for a given station from cache or DB."""
+    def get_station_latest(self, station_id: str, max_timestamp: Optional[datetime] = None) -> Optional[LiveStationSnapshot]:
+        """Fetch real-time snapshot for a given station from cache or DB bounded by optional max_timestamp."""
         node = self.topology.stations.get(station_id)
         name = node.name if node else f"Station {station_id}"
         lat = node.latitude if node else 0.0
         lon = node.longitude if node else 0.0
         elev = node.elevation_m if node else 0.0
 
-        # 1. Check in-memory state
-        stn_keys = [k for k in self.observation_order if k.startswith(f"{station_id}::")]
+        max_dt = ensure_utc(max_timestamp) if max_timestamp else None
+
+        # If explicit zero-point boundary (e.g. before start of replay), return empty snapshot
+        if max_dt is not None and max_dt.year <= 1970:
+            return LiveStationSnapshot(
+                station_id=station_id,
+                station_name=name,
+                latitude=lat,
+                longitude=lon,
+                elevation_m=elev,
+            )
+
+        # 1. Check in-memory state bounded by max_dt
+        stn_keys = [
+            k for k in self.observation_order
+            if k.startswith(f"{station_id}::") and (max_dt is None or self.observations[k].timestamp.astimezone(timezone.utc) <= max_dt)
+        ]
         health = self.get_station_health(station_id)
 
-        # Count active anomalies in last 24h
-        cutoff_24h = (datetime.now(timezone.utc) - pd.Timedelta(hours=24)).isoformat()
+        # Count active anomalies in last 24h up to max_dt
+        ref_time = max_dt or datetime.now(timezone.utc)
+        cutoff_24h = (ref_time - pd.Timedelta(hours=24)).isoformat()
+        max_ts_str = ref_time.isoformat()
         active_anom_count = sum(
             1 for ev in self.anomaly_events.values()
-            if ev.station_id == station_id and ev.timestamp >= cutoff_24h
+            if ev.station_id == station_id and cutoff_24h <= ev.timestamp <= max_ts_str
         )
 
         if stn_keys:
@@ -576,11 +609,11 @@ class DatabaseRepository:
         # 2. Query from database if in-memory empty (e.g. after backend restart)
         try:
             with self.session_manager.session() as session:
+                query = select(WeatherObservationModel).where(WeatherObservationModel.station_id == station_id)
+                if max_dt is not None:
+                    query = query.where(WeatherObservationModel.observation_timestamp <= max_dt)
                 latest_m = session.execute(
-                    select(WeatherObservationModel)
-                    .where(WeatherObservationModel.station_id == station_id)
-                    .order_by(desc(WeatherObservationModel.observation_timestamp))
-                    .limit(1)
+                    query.order_by(desc(WeatherObservationModel.observation_timestamp)).limit(1)
                 ).scalar_one_or_none()
 
                 if latest_m:

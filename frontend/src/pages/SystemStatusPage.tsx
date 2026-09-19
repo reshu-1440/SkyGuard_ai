@@ -1,10 +1,12 @@
 import React from 'react';
 import { useSystemHealth, useReplayStatus, useStepReplay } from '../hooks/useSystem';
+import { useRunContext } from '../hooks/useRunContext';
 import { SystemStatus } from '../components/SystemStatus';
-import { formatLatency, formatIsoUtc } from '../utils/formatters';
+import { formatLatency } from '../utils/formatters';
 import { Cpu, Play, FastForward, CheckCircle2, Activity } from 'lucide-react';
 
 export const SystemStatusPage: React.FC = () => {
+  const { context } = useRunContext();
   const { data: systemHealth, isLoading } = useSystemHealth();
   const { data: replayStatus } = useReplayStatus();
   const stepMutation = useStepReplay();
@@ -97,20 +99,24 @@ export const SystemStatusPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Operational metrics summary bar */}
-          <div className="p-3 grid grid-cols-3 gap-2 font-mono text-[11px]"
+          {/* Operational metrics summary bar - Differentiates Dataset Size, Processed, Operational Window, and Persisted */}
+          <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]"
             style={{ background: '#131C2E', border: '1px solid #152030', borderRadius: '2px' }}>
             <div>
-              <span className="text-slate-400 block text-[10px]">Processed Observations:</span>
-              <span className="text-slate-100 font-bold">{systemHealth?.total_observations_processed.toLocaleString() ?? 0}</span>
+              <span className="text-slate-400 block text-[10px] uppercase">Dataset Size:</span>
+              <span className="text-slate-100 font-bold">{context?.observation_count ?? 5760}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px]">Active Monitored Stations:</span>
-              <span className="text-slate-100 font-bold">{systemHealth?.active_monitored_stations ?? 0}</span>
+              <span className="text-slate-400 block text-[10px] uppercase">Processed:</span>
+              <span className="text-ops-weather font-bold">{context?.current_observation_index ?? replayStatus?.emitted_count ?? 0}</span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px]">Last Execution:</span>
-              <span className="text-slate-300 truncate block">{formatIsoUtc(systemHealth?.last_processed_timestamp)}</span>
+              <span className="text-slate-400 block text-[10px] uppercase">Operational Window:</span>
+              <span className="text-emerald-400 font-bold">60 Obs</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[10px] uppercase">Persisted (DB):</span>
+              <span className="text-slate-200 font-bold">{systemHealth?.total_observations_processed.toLocaleString() ?? 0}</span>
             </div>
           </div>
         </div>

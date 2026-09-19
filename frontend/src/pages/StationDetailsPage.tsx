@@ -26,9 +26,9 @@ export const StationDetailsPage: React.FC = () => {
   }, [rawStationId, allStations, navigate]);
 
   const { data: station, isLoading: isLoadingStation, isError } = useStation(activeStationId);
-  const { data: historyData } = useStationHistory(activeStationId, { limit: 150, order: 'desc' });
+  const { data: historyData } = useStationHistory(activeStationId, { limit: 120, order: 'desc', historical: false });
   const { data: healthData } = useStationHealth(activeStationId);
-  const { data: anomaliesData } = useAnomalies({ stationId: activeStationId, limit: 5 });
+  const { data: anomaliesData } = useAnomalies({ stationId: activeStationId, limit: 5, historical: false });
 
   // Map history to 3 time-series datasets sorted chronologically
   const { tempData, humData, presData } = useMemo(() => {

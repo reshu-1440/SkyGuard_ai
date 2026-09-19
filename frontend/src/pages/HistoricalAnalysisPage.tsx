@@ -6,7 +6,7 @@ import { MetricTable, ColumnDef } from '../components/MetricTable';
 import { AnomalyEventRecord } from '../types/api';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { formatIsoUtc } from '../utils/formatters';
-import { History, Calendar } from 'lucide-react';
+import { History, Calendar, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const HistoricalAnalysisPage: React.FC = () => {
@@ -23,10 +23,11 @@ export const HistoricalAnalysisPage: React.FC = () => {
     }
   }, [stations, selectedStationId]);
 
-  const { data: historyData } = useStationHistory(selectedStationId, { limit });
+  const { data: historyData } = useStationHistory(selectedStationId, { limit, historical: true });
   const { data: anomaliesData, isLoading: isLoadingAnomalies } = useAnomalies({
     stationId: selectedStationId,
     limit: 50,
+    historical: true,
   });
 
   const { tempData, humData, presData } = useMemo(() => {
@@ -125,6 +126,29 @@ export const HistoricalAnalysisPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      {/* Retrospective Historical Mode Distinction Banner */}
+      <div
+        className="px-3 py-2 flex items-center justify-between font-mono text-[11px]"
+        style={{
+          background: 'rgba(51, 65, 85, 0.4)',
+          border: '1px solid #334155',
+          borderLeft: '4px solid #64748B',
+          borderRadius: '2px',
+        }}
+      >
+        <div className="flex items-center gap-2 text-slate-300">
+          <Database className="w-3.5 h-3.5 text-slate-400" />
+          <span className="font-semibold uppercase text-slate-200">HISTORICAL ANALYSIS · RETROSPECTIVE ARCHIVE</span>
+          <span className="text-slate-500 hidden md:inline">|</span>
+          <span className="text-slate-400 hidden md:inline">
+            Static historical dataset window for offline model evaluation and retrospective analysis. Distinct from live operational replay.
+          </span>
+        </div>
+        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700 uppercase">
+          FULL ARCHIVE VIEW
+        </span>
+      </div>
+
       {/* Header & Filter Controls */}
       <div className="p-3 border border-border bg-surface-1 flex flex-wrap items-center justify-between gap-3" style={{ borderRadius: '2px' }}>
         <div className="flex items-center gap-2">

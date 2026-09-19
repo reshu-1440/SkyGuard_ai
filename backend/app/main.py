@@ -46,10 +46,33 @@ async def lifespan(app: FastAPI):
             logger.info("Starting background live source poller for provider '%s'...", settings.live_source.provider)
             await poller.start()
 
+    # Auto-start demo replay simulation if demo_autostart is enabled
+    if settings.demo_autostart:
+        from backend.app.api.v1.deps import get_engine, get_replay_engine, get_run_context_manager
+        from backend.app.models.run_context import RunStatus
+        replay = get_replay_engine()
+        engine = get_engine()
+        ctx_mgr = get_run_context_manager()
+        ctx = ctx_mgr.get_context()
+        if ctx.status == RunStatus.IDLE:
+            logger.info("DEMO_AUTOSTART enabled: launching Synthetic Benchmark Replay at 1.0x cadence...")
+            replay.set_speed(1.0)
+            await replay.start(engine=engine, ctx_mgr=ctx_mgr)
+            ctx_mgr.update_context(status=RunStatus.RUNNING)
+
     yield
 
     # Graceful shutdown
     logger.info("Shutting down SkyGuard AI backend service...")
+    if settings.demo_autostart:
+        try:
+            from backend.app.api.v1.deps import get_replay_engine
+            replay = get_replay_engine()
+            if replay.is_running:
+                await replay.pause()
+        except Exception:
+            pass
+
     if settings.live_source.enabled:
         try:
             from backend.app.api.v1.deps import get_live_poller

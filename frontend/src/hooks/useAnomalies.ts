@@ -13,6 +13,7 @@ export function useAnomalies(params?: {
   endTime?: string;
   limit?: number;
   offset?: number;
+  historical?: boolean;
 }) {
   return useQuery({
     queryKey: ['anomalies', params],
@@ -21,18 +22,18 @@ export function useAnomalies(params?: {
   });
 }
 
-export function useAnomalyDetail(eventId: string) {
+export function useAnomalyDetail(eventId: string, historical?: boolean) {
   return useQuery({
-    queryKey: ['anomaly', eventId],
-    queryFn: () => fetchAnomalyDetail(eventId),
+    queryKey: ['anomaly', eventId, historical],
+    queryFn: () => fetchAnomalyDetail(eventId, historical),
     enabled: Boolean(eventId),
   });
 }
 
-export function useAnomalyExplanation(eventId: string) {
+export function useAnomalyExplanation(eventId: string, historical?: boolean) {
   return useQuery({
-    queryKey: ['anomaly', eventId, 'explanation'],
-    queryFn: () => fetchAnomalyExplanation(eventId),
+    queryKey: ['anomaly', eventId, 'explanation', historical],
+    queryFn: () => fetchAnomalyExplanation(eventId, historical),
     enabled: Boolean(eventId),
   });
 }

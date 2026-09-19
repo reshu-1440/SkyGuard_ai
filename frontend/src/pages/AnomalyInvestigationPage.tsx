@@ -16,12 +16,12 @@ export const AnomalyInvestigationPage: React.FC = () => {
   const { eventId } = useParams<{ eventId?: string }>();
   const navigate = useNavigate();
 
-  // Fetch recent anomalies list to populate switcher and default selection
-  const { data: allAnomalies, isLoading: isLoadingAll } = useAnomalies({ limit: 50 });
+  // Fetch recent anomalies list to populate switcher and default selection (operational cursor-bounded)
+  const { data: allAnomalies, isLoading: isLoadingAll } = useAnomalies({ limit: 50, historical: false });
   const activeEventId = eventId || allAnomalies?.items?.[0]?.event_id;
 
-  const { data: anomaly, isLoading: isLoadingDetail, isError: isErrorDetail } = useAnomalyDetail(activeEventId || '');
-  const { data: explanation } = useAnomalyExplanation(activeEventId || '');
+  const { data: anomaly, isLoading: isLoadingDetail, isError: isErrorDetail } = useAnomalyDetail(activeEventId || '', false);
+  const { data: explanation } = useAnomalyExplanation(activeEventId || '', false);
   const { data: allStations = [] } = useStations();
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);

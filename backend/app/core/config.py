@@ -268,6 +268,11 @@ class AppSettings(BaseSettings):
         validation_alias=AliasChoices("SKYGUARD_ENABLE_PUBLIC_POLL_TRIGGER", "enable_public_poll_trigger"),
         description="Whether POST /api/v1/live/poll-now allows unauthenticated triggers in production"
     )
+    demo_autostart: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("SKYGUARD_DEMO_AUTOSTART", "demo_autostart", "DEMO_AUTOSTART"),
+        description="Whether demo replay starts automatically on application launch in hackathon/demo environments"
+    )
 
     # Sub-component configurations
     system: SystemSettings = Field(default_factory=SystemSettings)

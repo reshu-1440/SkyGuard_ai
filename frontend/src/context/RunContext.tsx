@@ -58,6 +58,25 @@ export const RunContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearInterval(interval);
   }, [refreshContext, context?.status]);
 
+  const autoStartAttemptedRef = useRef<boolean>(false);
+
+  // Auto-start demo replay if configured via VITE_DEMO_AUTOSTART or backend context
+  useEffect(() => {
+    if (autoStartAttemptedRef.current || !context) return;
+    const isAutostartConfigured =
+      (import.meta as any).env?.VITE_DEMO_AUTOSTART === 'true' ||
+      Boolean(context.metadata?.demo_autostart);
+
+    if (
+      isAutostartConfigured &&
+      context.status === 'IDLE' &&
+      context.mode === 'SYNTHETIC_REPLAY'
+    ) {
+      autoStartAttemptedRef.current = true;
+      handleStart();
+    }
+  }, [context]);
+
   const updateContextFromEvent = useCallback((partial: Partial<RunContext>) => {
     setContext((prev) => (prev ? { ...prev, ...partial } : null));
   }, []);

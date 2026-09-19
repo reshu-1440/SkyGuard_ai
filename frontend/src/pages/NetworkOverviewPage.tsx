@@ -64,7 +64,7 @@ export const NetworkOverviewPage: React.FC = () => {
   const navigate = useNavigate();
   const { context } = useRunContext();
   const { data: stations = [], isLoading: isLoadingStations } = useStations();
-  const { data: anomalyData, isLoading: isLoadingAnomalies } = useAnomalies({ limit: 10 });
+  const { data: anomalyData, isLoading: isLoadingAnomalies } = useAnomalies({ limit: 10, historical: false });
   const { data: systemHealth } = useSystemHealth();
   const { data: liveSource } = useLiveSourceHealth();
   const { data: replayStatus } = useReplayStatus();
